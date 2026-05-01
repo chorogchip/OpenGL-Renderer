@@ -1,0 +1,345 @@
+#include "g_buffer_resources.h"
+
+#include <iostream>
+
+#include <glad/glad.h>
+
+#include "graphics_util.h"
+
+namespace {
+    constexpr const char* LIGHTING_VERTEX_SHADER_PATH = "assets/shaders/deferred_light.vert";
+    constexpr const char* LIGHTING_FRAGMENT_SHADER_PATH = "assets/shaders/deferred_light.frag";
+    constexpr const char* DEBUG_FRAGMENT_SHADER_PATH = "assets/shaders/debug_buffer.frag";
+    const glm::vec3 LIGHT_DIRECTION = glm::normalize(glm::vec3(-0.6f, -1.0f, -0.35f));
+    const glm::vec3 LIGHT_COLOR = glm::vec3(1.0f, 0.98f, 0.92f);
+    constexpr float AMBIENT_STRENGTH = 0.32f;
+    constexpr float DIFFUSE_STRENGTH = 0.85f;
+
+    int create_g_buffer_attachments(chr::GBufferResources* resources, int width, int height) {
+        glGenFramebuffers(1, &resources->framebuffer);
+        glBindFramebuffer(GL_FRAMEBUFFER, resources->framebuffer);
+
+        glGenTextures(1, &resources->texture_albedo);
+        glBindTexture(GL_TEXTURE_2D, resources->texture_albedo);
+        glTexImage2D(
+            GL_TEXTURE_2D, 0, GL_RGBA8,
+            width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, nullptr);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+        glFramebufferTexture2D(
+            GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, resources->texture_albedo, 0);
+
+        glGenTextures(1, &resources->texture_normal);
+        glBindTexture(GL_TEXTURE_2D, resources->texture_normal);
+        glTexImage2D(
+            GL_TEXTURE_2D, 0, GL_RGB16F,
+            width, height, 0, GL_RGB, GL_FLOAT, nullptr);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+        glFramebufferTexture2D(
+            GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT1, GL_TEXTURE_2D, resources->texture_normal, 0);
+
+        glGenTextures(1, &resources->texture_depth);
+        glBindTexture(GL_TEXTURE_2D, resources->texture_depth);
+        glTexImage2D(
+            GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT24,
+            width, height, 0, GL_DEPTH_COMPONENT, GL_FLOAT, nullptr);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+        glFramebufferTexture2D(
+            GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D, resources->texture_depth, 0);
+
+        constexpr GLenum draw_buffers[] = {
+            GL_COLOR_ATTACHMENT0,
+            GL_COLOR_ATTACHMENT1
+        };
+        glDrawBuffers(2, draw_buffers);
+
+        if (glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE) {
+            std::cout << "Err: G-buffer framebuffer is incomplete." << std::endl;
+            glBindFramebuffer(GL_FRAMEBUFFER, 0);
+            return -1;
+        }
+
+        glBindFramebuffer(GL_FRAMEBUFFER, 0);
+        resources->width = width;
+        resources->height = height;
+        return 0;
+    }
+
+    void clear_g_buffer_attachments(chr::GBufferResources* resources) {
+        if (resources->texture_depth != 0) {
+            glDeleteTextures(1, &resources->texture_depth);
+            resources->texture_depth = 0;
+        }
+
+        if (resources->texture_normal != 0) {
+            glDeleteTextures(1, &resources->texture_normal);
+            resources->texture_normal = 0;
+        }
+
+        if (resources->texture_albedo != 0) {
+            glDeleteTextures(1, &resources->texture_albedo);
+            resources->texture_albedo = 0;
+        }
+
+        if (resources->framebuffer != 0) {
+            glDeleteFramebuffers(1, &resources->framebuffer);
+            resources->framebuffer = 0;
+        }
+
+        resources->width = 0;
+        resources->height = 0;
+    }
+}
+
+namespace chr {
+
+    int GBufferResources::init(int width, int height) {
+        clear();
+
+        if (width <= 0 || height <= 0) {
+            std::cout << "Err: Invalid G-buffer size." << std::endl;
+            return -1;
+        }
+
+        if (create_g_buffer_attachments(this, width, height) != 0) {
+            clear();
+            return -1;
+        }
+
+        constexpr float quad_vertices[] = {
+            -1.0f, -1.0f, 0.0f, 0.0f,
+             1.0f, -1.0f, 1.0f, 0.0f,
+            -1.0f,  1.0f, 0.0f, 1.0f,
+            -1.0f,  1.0f, 0.0f, 1.0f,
+             1.0f, -1.0f, 1.0f, 0.0f,
+             1.0f,  1.0f, 1.0f, 1.0f
+        };
+
+        glGenVertexArrays(1, &this->quad_vao);
+        glGenBuffers(1, &this->quad_vbo);
+        glBindVertexArray(this->quad_vao);
+        glBindBuffer(GL_ARRAY_BUFFER, this->quad_vbo);
+        glBufferData(GL_ARRAY_BUFFER, sizeof(quad_vertices), quad_vertices, GL_STATIC_DRAW);
+        glEnableVertexAttribArray(0);
+        glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 4 * sizeof(float), (void*)0);
+        glEnableVertexAttribArray(1);
+        glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 4 * sizeof(float), (void*)(2 * sizeof(float)));
+        glBindVertexArray(0);
+
+        const unsigned vertex_shader = graphics_util::compile_shader_from_file(
+            GL_VERTEX_SHADER, LIGHTING_VERTEX_SHADER_PATH);
+        if (vertex_shader == 0) {
+            clear();
+            return -1;
+        }
+        const unsigned fragment_shader = graphics_util::compile_shader_from_file(
+            GL_FRAGMENT_SHADER, LIGHTING_FRAGMENT_SHADER_PATH);
+        if (fragment_shader == 0) {
+            glDeleteShader(vertex_shader);
+            clear();
+            return -1;
+        }
+
+        this->lighting_shader_program = glCreateProgram();
+        glAttachShader(this->lighting_shader_program, vertex_shader);
+        glAttachShader(this->lighting_shader_program, fragment_shader);
+        glLinkProgram(this->lighting_shader_program);
+
+        int succeed = 0;
+        glGetProgramiv(this->lighting_shader_program, GL_LINK_STATUS, &succeed);
+        if (!succeed) {
+            char log_buf[512];
+            glGetProgramInfoLog(this->lighting_shader_program, 512, nullptr, log_buf);
+            std::cout << "Err: Deferred light shader link failed: " << log_buf << std::endl;
+            glDeleteShader(vertex_shader);
+            glDeleteShader(fragment_shader);
+            clear();
+            return -1;
+        }
+        glDeleteShader(vertex_shader);
+        glDeleteShader(fragment_shader);
+
+        this->uniform_g_albedo = glGetUniformLocation(this->lighting_shader_program, "gAlbedo");
+        this->uniform_g_normal = glGetUniformLocation(this->lighting_shader_program, "gNormal");
+        this->uniform_g_depth = glGetUniformLocation(this->lighting_shader_program, "gDepth");
+        this->uniform_inverse_projection = glGetUniformLocation(this->lighting_shader_program, "uInverseProjection");
+        this->uniform_light_direction = glGetUniformLocation(this->lighting_shader_program, "uLightDirection");
+        this->uniform_light_color = glGetUniformLocation(this->lighting_shader_program, "uLightColor");
+        this->uniform_ambient_strength = glGetUniformLocation(this->lighting_shader_program, "uAmbientStrength");
+        this->uniform_diffuse_strength = glGetUniformLocation(this->lighting_shader_program, "uDiffuseStrength");
+
+        const unsigned debug_vertex_shader = graphics_util::compile_shader_from_file(
+            GL_VERTEX_SHADER, LIGHTING_VERTEX_SHADER_PATH);
+        if (debug_vertex_shader == 0) {
+            clear();
+            return -1;
+        }
+        const unsigned debug_fragment_shader = graphics_util::compile_shader_from_file(
+            GL_FRAGMENT_SHADER, DEBUG_FRAGMENT_SHADER_PATH);
+        if (debug_fragment_shader == 0) {
+            glDeleteShader(debug_vertex_shader);
+            clear();
+            return -1;
+        }
+
+        this->debug_shader_program = glCreateProgram();
+        glAttachShader(this->debug_shader_program, debug_vertex_shader);
+        glAttachShader(this->debug_shader_program, debug_fragment_shader);
+        glLinkProgram(this->debug_shader_program);
+
+        succeed = 0;
+        glGetProgramiv(this->debug_shader_program, GL_LINK_STATUS, &succeed);
+        if (!succeed) {
+            char log_buf[512];
+            glGetProgramInfoLog(this->debug_shader_program, 512, nullptr, log_buf);
+            std::cout << "Err: Debug buffer shader link failed: " << log_buf << std::endl;
+            glDeleteShader(debug_vertex_shader);
+            glDeleteShader(debug_fragment_shader);
+            clear();
+            return -1;
+        }
+        glDeleteShader(debug_vertex_shader);
+        glDeleteShader(debug_fragment_shader);
+
+        this->uniform_debug_texture = glGetUniformLocation(this->debug_shader_program, "uTexture");
+        this->uniform_debug_mode = glGetUniformLocation(this->debug_shader_program, "uMode");
+        return 0;
+    }
+
+    int GBufferResources::resize(int width, int height) {
+        if (width <= 0 || height <= 0) {
+            return -1;
+        }
+
+        if (this->width == width && this->height == height) {
+            return 0;
+        }
+
+        clear_g_buffer_attachments(this);
+        if (create_g_buffer_attachments(this, width, height) != 0) {
+            clear_g_buffer_attachments(this);
+            return -1;
+        }
+
+        return 0;
+    }
+
+    void GBufferResources::clear() {
+        if (this->debug_shader_program != 0) {
+            glDeleteProgram(this->debug_shader_program);
+            this->debug_shader_program = 0;
+        }
+
+        if (this->lighting_shader_program != 0) {
+            glDeleteProgram(this->lighting_shader_program);
+            this->lighting_shader_program = 0;
+        }
+
+        if (this->quad_vbo != 0) {
+            glDeleteBuffers(1, &this->quad_vbo);
+            this->quad_vbo = 0;
+        }
+
+        if (this->quad_vao != 0) {
+            glDeleteVertexArrays(1, &this->quad_vao);
+            this->quad_vao = 0;
+        }
+
+        clear_g_buffer_attachments(this);
+        this->uniform_g_albedo = -1;
+        this->uniform_g_normal = -1;
+        this->uniform_g_depth = -1;
+        this->uniform_inverse_projection = -1;
+        this->uniform_light_direction = -1;
+        this->uniform_light_color = -1;
+        this->uniform_ambient_strength = -1;
+        this->uniform_diffuse_strength = -1;
+        this->uniform_debug_texture = -1;
+        this->uniform_debug_mode = -1;
+    }
+
+    void GBufferResources::bind_for_geometry_pass() {
+        glBindFramebuffer(GL_FRAMEBUFFER, this->framebuffer);
+        glViewport(0, 0, this->width, this->height);
+    }
+
+    void GBufferResources::draw_lighting_pass(const glm::mat4& mat_projection, const glm::mat4& mat_view) {
+        bind_default_framebuffer(this->width, this->height);
+        glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
+        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+        const glm::mat4 inverse_projection = glm::inverse(mat_projection);
+        const glm::vec3 view_light_direction =
+            glm::normalize(glm::mat3(mat_view) * LIGHT_DIRECTION);
+
+        glUseProgram(this->lighting_shader_program);
+        glUniform1i(this->uniform_g_albedo, 0);
+        glUniform1i(this->uniform_g_normal, 1);
+        glUniform1i(this->uniform_g_depth, 2);
+        glUniformMatrix4fv(this->uniform_inverse_projection, 1, GL_FALSE, &inverse_projection[0][0]);
+        glUniform3fv(this->uniform_light_direction, 1, &view_light_direction[0]);
+        glUniform3fv(this->uniform_light_color, 1, &LIGHT_COLOR[0]);
+        glUniform1f(this->uniform_ambient_strength, AMBIENT_STRENGTH);
+        glUniform1f(this->uniform_diffuse_strength, DIFFUSE_STRENGTH);
+
+        glActiveTexture(GL_TEXTURE0);
+        glBindTexture(GL_TEXTURE_2D, this->texture_albedo);
+        glActiveTexture(GL_TEXTURE1);
+        glBindTexture(GL_TEXTURE_2D, this->texture_normal);
+        glActiveTexture(GL_TEXTURE2);
+        glBindTexture(GL_TEXTURE_2D, this->texture_depth);
+
+        glBindVertexArray(this->quad_vao);
+        glDisable(GL_DEPTH_TEST);
+        glDrawArrays(GL_TRIANGLES, 0, 6);
+        glEnable(GL_DEPTH_TEST);
+        glBindVertexArray(0);
+    }
+
+    void GBufferResources::draw_debug_views() {
+        constexpr int preview_count = 3;
+        const int padding = 16;
+        const int preview_width = this->width / 5;
+        const int preview_height = this->height / 5;
+        const int x = this->width - preview_width - padding;
+
+        const uint32_t preview_textures[preview_count] = {
+            this->texture_albedo,
+            this->texture_normal,
+            this->texture_depth
+        };
+        const int preview_modes[preview_count] = { 0, 1, 2 };
+
+        glUseProgram(this->debug_shader_program);
+        glUniform1i(this->uniform_debug_texture, 0);
+        glBindVertexArray(this->quad_vao);
+        glDisable(GL_DEPTH_TEST);
+
+        for (int i = 0; i < preview_count; ++i) {
+            const int y = this->height - padding - ((i + 1) * preview_height);
+            glViewport(x, y, preview_width, preview_height);
+            glUniform1i(this->uniform_debug_mode, preview_modes[i]);
+            glActiveTexture(GL_TEXTURE0);
+            glBindTexture(GL_TEXTURE_2D, preview_textures[i]);
+            glDrawArrays(GL_TRIANGLES, 0, 6);
+        }
+
+        glEnable(GL_DEPTH_TEST);
+        glBindVertexArray(0);
+        glViewport(0, 0, this->width, this->height);
+    }
+
+    void GBufferResources::bind_default_framebuffer(int width, int height) {
+        glBindFramebuffer(GL_FRAMEBUFFER, 0);
+        glViewport(0, 0, width, height);
+    }
+
+}

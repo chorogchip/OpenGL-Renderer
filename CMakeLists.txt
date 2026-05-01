@@ -98,9 +98,44 @@ else()
     set(STB_INCLUDE_DIR "${stb_SOURCE_DIR}")
 endif()
 
+if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/external/imgui/imgui.cpp" AND
+   EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/external/imgui/backends/imgui_impl_glfw.cpp" AND
+   EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/external/imgui/backends/imgui_impl_opengl3.cpp")
+    set(IMGUI_SOURCE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/external/imgui")
+else()
+    FetchContent_Declare(
+        imgui
+        GIT_REPOSITORY https://github.com/ocornut/imgui.git
+        GIT_TAG v1.92.7
+        GIT_SHALLOW TRUE
+        GIT_PROGRESS TRUE
+    )
+    FetchContent_GetProperties(imgui)
+    if(NOT imgui_POPULATED)
+        FetchContent_Populate(imgui)
+    endif()
+    set(IMGUI_SOURCE_DIR "${imgui_SOURCE_DIR}")
+endif()
+
 find_package(OpenGL REQUIRED)
 
 file(GLOB SOURCES CONFIGURE_DEPENDS "src/*.cpp")
+
+add_library(imgui STATIC
+    ${IMGUI_SOURCE_DIR}/imgui.cpp
+    ${IMGUI_SOURCE_DIR}/imgui_demo.cpp
+    ${IMGUI_SOURCE_DIR}/imgui_draw.cpp
+    ${IMGUI_SOURCE_DIR}/imgui_tables.cpp
+    ${IMGUI_SOURCE_DIR}/imgui_widgets.cpp
+    ${IMGUI_SOURCE_DIR}/backends/imgui_impl_glfw.cpp
+    ${IMGUI_SOURCE_DIR}/backends/imgui_impl_opengl3.cpp
+)
+target_include_directories(imgui PUBLIC
+    ${IMGUI_SOURCE_DIR}
+    ${IMGUI_SOURCE_DIR}/backends
+)
+target_compile_definitions(imgui PUBLIC IMGUI_IMPL_OPENGL_LOADER_GLAD)
+target_link_libraries(imgui PUBLIC glfw glad::glad OpenGL::GL)
 
 add_executable(${PROJECT_NAME} ${SOURCES})
 
@@ -114,6 +149,7 @@ target_link_libraries(${PROJECT_NAME} PRIVATE
     glfw
     glad::glad
     glm::glm
+    imgui
     assimp
 )
 

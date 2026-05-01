@@ -37,14 +37,6 @@ namespace chr {
         int uniform_view = -1;
         int uniform_projection = -1;
         int uniform_texture_diffuse = -1;
-        int uniform_light_direction = -1;
-        int uniform_light_color = -1;
-        int uniform_ambient_strength = -1;
-        int uniform_diffuse_strength = -1;
-
-        int init(const SceneRaw& scene_raw);
-        void clear();
-        void draw(const SceneDrawParams& draw_params);
     };
 
 }

@@ -9,4 +9,5 @@ namespace chr {
 namespace app_input {
     void initialize(GLFWwindow* window, chr::Camera* camera, int screen_width, int screen_height);
     void process_input(GLFWwindow* window);
+    bool consume_toggle_debug_views_requested();
 }
