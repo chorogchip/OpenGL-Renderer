@@ -130,6 +130,7 @@ int main() {
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
         chr::render_scene_gpu_resources(scene_gpu_resources, draw_params);
         g_buffer_resources.draw_lighting_pass(draw_params.mat_projection, draw_params.mat_view);
+        g_buffer_resources.draw_light_markers(draw_params.mat_projection, draw_params.mat_view);
         if (show_debug_views) {
             g_buffer_resources.draw_debug_views();
         }

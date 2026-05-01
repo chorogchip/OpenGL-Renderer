@@ -1,8 +1,11 @@
 #include "g_buffer_resources.h"
 
+#include <array>
+#include <cstdio>
 #include <iostream>
 
 #include <glad/glad.h>
+#include <glm/gtc/matrix_transform.hpp>
 
 #include "graphics_util.h"
 
@@ -10,10 +13,54 @@ namespace {
     constexpr const char* LIGHTING_VERTEX_SHADER_PATH = "assets/shaders/deferred_light.vert";
     constexpr const char* LIGHTING_FRAGMENT_SHADER_PATH = "assets/shaders/deferred_light.frag";
     constexpr const char* DEBUG_FRAGMENT_SHADER_PATH = "assets/shaders/debug_buffer.frag";
+    constexpr const char* LIGHT_MARKER_VERTEX_SHADER_PATH = "assets/shaders/light_marker.vert";
+    constexpr const char* LIGHT_MARKER_FRAGMENT_SHADER_PATH = "assets/shaders/light_marker.frag";
     const glm::vec3 LIGHT_DIRECTION = glm::normalize(glm::vec3(-0.6f, -1.0f, -0.35f));
     const glm::vec3 LIGHT_COLOR = glm::vec3(1.0f, 0.98f, 0.92f);
     constexpr float AMBIENT_STRENGTH = 0.32f;
     constexpr float DIFFUSE_STRENGTH = 0.85f;
+    constexpr int POINT_LIGHT_COUNT = 5;
+    constexpr float LIGHT_MARKER_SCALE = 0.18f;
+
+    struct PointLightDesc {
+        glm::vec3 position;
+        glm::vec3 color;
+        float intensity;
+        float range;
+    };
+
+    const std::array<PointLightDesc, POINT_LIGHT_COUNT> POINT_LIGHTS = {{
+        {
+            glm::vec3(0.0f, 5.5f, 0.0f),
+            glm::vec3(1.0f, 0.82f, 0.55f),
+            12.0f,
+            3.0f
+        },
+        {
+            glm::vec3(-5.5f, 3.0f, 4.0f),
+            glm::vec3(1.0f, 0.55f, 0.35f),
+            8.0f,
+            2.5f
+        },
+        {
+            glm::vec3(5.5f, 3.0f, 4.0f),
+            glm::vec3(0.45f, 0.65f, 1.0f),
+            8.0f,
+            2.5f
+        },
+        {
+            glm::vec3(-5.5f, 3.0f, -4.0f),
+            glm::vec3(0.55f, 1.0f, 0.65f),
+            8.0f,
+            2.5f
+        },
+        {
+            glm::vec3(5.5f, 3.0f, -4.0f),
+            glm::vec3(1.0f, 0.35f, 0.45f),
+            8.0f,
+            2.5f
+        }
+    }};
 
     int create_g_buffer_attachments(chr::GBufferResources* resources, int width, int height) {
         glGenFramebuffers(1, &resources->framebuffer);
@@ -134,6 +181,33 @@ namespace chr {
         glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 4 * sizeof(float), (void*)(2 * sizeof(float)));
         glBindVertexArray(0);
 
+        constexpr float tetra_vertices[] = {
+             0.0f,  1.0f,  0.0f,
+            -1.0f, -1.0f,  1.0f,
+             1.0f, -1.0f,  1.0f,
+
+             0.0f,  1.0f,  0.0f,
+             1.0f, -1.0f,  1.0f,
+             0.0f, -1.0f, -1.0f,
+
+             0.0f,  1.0f,  0.0f,
+             0.0f, -1.0f, -1.0f,
+            -1.0f, -1.0f,  1.0f,
+
+            -1.0f, -1.0f,  1.0f,
+             0.0f, -1.0f, -1.0f,
+             1.0f, -1.0f,  1.0f
+        };
+
+        glGenVertexArrays(1, &this->light_marker_vao);
+        glGenBuffers(1, &this->light_marker_vbo);
+        glBindVertexArray(this->light_marker_vao);
+        glBindBuffer(GL_ARRAY_BUFFER, this->light_marker_vbo);
+        glBufferData(GL_ARRAY_BUFFER, sizeof(tetra_vertices), tetra_vertices, GL_STATIC_DRAW);
+        glEnableVertexAttribArray(0);
+        glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)0);
+        glBindVertexArray(0);
+
         const unsigned vertex_shader = graphics_util::compile_shader_from_file(
             GL_VERTEX_SHADER, LIGHTING_VERTEX_SHADER_PATH);
         if (vertex_shader == 0) {
@@ -175,6 +249,18 @@ namespace chr {
         this->uniform_light_color = glGetUniformLocation(this->lighting_shader_program, "uLightColor");
         this->uniform_ambient_strength = glGetUniformLocation(this->lighting_shader_program, "uAmbientStrength");
         this->uniform_diffuse_strength = glGetUniformLocation(this->lighting_shader_program, "uDiffuseStrength");
+        this->uniform_point_light_count = glGetUniformLocation(this->lighting_shader_program, "uPointLightCount");
+        for (int i = 0; i < POINT_LIGHT_COUNT; ++i) {
+            char uniform_name[64];
+            snprintf(uniform_name, sizeof(uniform_name), "uPointLightPositions[%d]", i);
+            this->uniform_point_light_positions[i] = glGetUniformLocation(this->lighting_shader_program, uniform_name);
+            snprintf(uniform_name, sizeof(uniform_name), "uPointLightColors[%d]", i);
+            this->uniform_point_light_colors[i] = glGetUniformLocation(this->lighting_shader_program, uniform_name);
+            snprintf(uniform_name, sizeof(uniform_name), "uPointLightIntensities[%d]", i);
+            this->uniform_point_light_intensities[i] = glGetUniformLocation(this->lighting_shader_program, uniform_name);
+            snprintf(uniform_name, sizeof(uniform_name), "uPointLightRanges[%d]", i);
+            this->uniform_point_light_ranges[i] = glGetUniformLocation(this->lighting_shader_program, uniform_name);
+        }
 
         const unsigned debug_vertex_shader = graphics_util::compile_shader_from_file(
             GL_VERTEX_SHADER, LIGHTING_VERTEX_SHADER_PATH);
@@ -211,6 +297,44 @@ namespace chr {
 
         this->uniform_debug_texture = glGetUniformLocation(this->debug_shader_program, "uTexture");
         this->uniform_debug_mode = glGetUniformLocation(this->debug_shader_program, "uMode");
+
+        const unsigned light_marker_vertex_shader = graphics_util::compile_shader_from_file(
+            GL_VERTEX_SHADER, LIGHT_MARKER_VERTEX_SHADER_PATH);
+        if (light_marker_vertex_shader == 0) {
+            clear();
+            return -1;
+        }
+        const unsigned light_marker_fragment_shader = graphics_util::compile_shader_from_file(
+            GL_FRAGMENT_SHADER, LIGHT_MARKER_FRAGMENT_SHADER_PATH);
+        if (light_marker_fragment_shader == 0) {
+            glDeleteShader(light_marker_vertex_shader);
+            clear();
+            return -1;
+        }
+
+        this->light_marker_shader_program = glCreateProgram();
+        glAttachShader(this->light_marker_shader_program, light_marker_vertex_shader);
+        glAttachShader(this->light_marker_shader_program, light_marker_fragment_shader);
+        glLinkProgram(this->light_marker_shader_program);
+
+        succeed = 0;
+        glGetProgramiv(this->light_marker_shader_program, GL_LINK_STATUS, &succeed);
+        if (!succeed) {
+            char log_buf[512];
+            glGetProgramInfoLog(this->light_marker_shader_program, 512, nullptr, log_buf);
+            std::cout << "Err: Light marker shader link failed: " << log_buf << std::endl;
+            glDeleteShader(light_marker_vertex_shader);
+            glDeleteShader(light_marker_fragment_shader);
+            clear();
+            return -1;
+        }
+        glDeleteShader(light_marker_vertex_shader);
+        glDeleteShader(light_marker_fragment_shader);
+
+        this->uniform_marker_model = glGetUniformLocation(this->light_marker_shader_program, "model");
+        this->uniform_marker_view = glGetUniformLocation(this->light_marker_shader_program, "view");
+        this->uniform_marker_projection = glGetUniformLocation(this->light_marker_shader_program, "projection");
+        this->uniform_marker_color = glGetUniformLocation(this->light_marker_shader_program, "uColor");
         return 0;
     }
 
@@ -238,6 +362,11 @@ namespace chr {
             this->debug_shader_program = 0;
         }
 
+        if (this->light_marker_shader_program != 0) {
+            glDeleteProgram(this->light_marker_shader_program);
+            this->light_marker_shader_program = 0;
+        }
+
         if (this->lighting_shader_program != 0) {
             glDeleteProgram(this->lighting_shader_program);
             this->lighting_shader_program = 0;
@@ -253,6 +382,16 @@ namespace chr {
             this->quad_vao = 0;
         }
 
+        if (this->light_marker_vbo != 0) {
+            glDeleteBuffers(1, &this->light_marker_vbo);
+            this->light_marker_vbo = 0;
+        }
+
+        if (this->light_marker_vao != 0) {
+            glDeleteVertexArrays(1, &this->light_marker_vao);
+            this->light_marker_vao = 0;
+        }
+
         clear_g_buffer_attachments(this);
         this->uniform_g_albedo = -1;
         this->uniform_g_normal = -1;
@@ -262,6 +401,15 @@ namespace chr {
         this->uniform_light_color = -1;
         this->uniform_ambient_strength = -1;
         this->uniform_diffuse_strength = -1;
+        this->uniform_point_light_count = -1;
+        this->uniform_point_light_positions.fill(-1);
+        this->uniform_point_light_colors.fill(-1);
+        this->uniform_point_light_intensities.fill(-1);
+        this->uniform_point_light_ranges.fill(-1);
+        this->uniform_marker_model = -1;
+        this->uniform_marker_view = -1;
+        this->uniform_marker_projection = -1;
+        this->uniform_marker_color = -1;
         this->uniform_debug_texture = -1;
         this->uniform_debug_mode = -1;
     }
@@ -289,6 +437,15 @@ namespace chr {
         glUniform3fv(this->uniform_light_color, 1, &LIGHT_COLOR[0]);
         glUniform1f(this->uniform_ambient_strength, AMBIENT_STRENGTH);
         glUniform1f(this->uniform_diffuse_strength, DIFFUSE_STRENGTH);
+        glUniform1i(this->uniform_point_light_count, POINT_LIGHT_COUNT);
+
+        for (int i = 0; i < POINT_LIGHT_COUNT; ++i) {
+            const glm::vec3 view_light_position = glm::vec3(mat_view * glm::vec4(POINT_LIGHTS[i].position, 1.0f));
+            glUniform3fv(this->uniform_point_light_positions[i], 1, &view_light_position[0]);
+            glUniform3fv(this->uniform_point_light_colors[i], 1, &POINT_LIGHTS[i].color[0]);
+            glUniform1f(this->uniform_point_light_intensities[i], POINT_LIGHTS[i].intensity);
+            glUniform1f(this->uniform_point_light_ranges[i], POINT_LIGHTS[i].range);
+        }
 
         glActiveTexture(GL_TEXTURE0);
         glBindTexture(GL_TEXTURE_2D, this->texture_albedo);
@@ -300,6 +457,27 @@ namespace chr {
         glBindVertexArray(this->quad_vao);
         glDisable(GL_DEPTH_TEST);
         glDrawArrays(GL_TRIANGLES, 0, 6);
+        glEnable(GL_DEPTH_TEST);
+        glBindVertexArray(0);
+    }
+
+    void GBufferResources::draw_light_markers(const glm::mat4& mat_projection, const glm::mat4& mat_view) {
+        bind_default_framebuffer(this->width, this->height);
+
+        glUseProgram(this->light_marker_shader_program);
+        glUniformMatrix4fv(this->uniform_marker_view, 1, GL_FALSE, &mat_view[0][0]);
+        glUniformMatrix4fv(this->uniform_marker_projection, 1, GL_FALSE, &mat_projection[0][0]);
+        glBindVertexArray(this->light_marker_vao);
+        glDisable(GL_DEPTH_TEST);
+
+        for (const auto& point_light : POINT_LIGHTS) {
+            glm::mat4 mat_model = glm::translate(glm::mat4(1.0f), point_light.position);
+            mat_model = glm::scale(mat_model, glm::vec3(LIGHT_MARKER_SCALE));
+            glUniformMatrix4fv(this->uniform_marker_model, 1, GL_FALSE, &mat_model[0][0]);
+            glUniform3fv(this->uniform_marker_color, 1, &point_light.color[0]);
+            glDrawArrays(GL_TRIANGLES, 0, 12);
+        }
+
         glEnable(GL_DEPTH_TEST);
         glBindVertexArray(0);
     }
