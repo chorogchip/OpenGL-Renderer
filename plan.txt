@@ -1,3 +1,70 @@
 
 코딩 스타일은 원본을 최대한 존중하고,
 최소한의 코드를 사용하자.
+
+
+==== current situation ====
+
+- Sponza scene loads and renders.
+- Diffuse texture loading is working.
+- Camera interaction is improved:
+  - W/A/S/D move
+  - Space / Left Shift move vertically
+  - mouse look works
+  - scroll zoom works
+  - Esc releases mouse focus
+  - left click captures mouse focus again
+- Render path is cleaned compared with the early prototype.
+- Deferred rendering migration has started.
+
+현재 deferred 상태
+- G-buffer resource is created and managed separately.
+- G-buffer stores:
+  - albedo
+  - normal
+  - depth
+- Scene pass is now a geometry pass writing into the G-buffer.
+- Fullscreen deferred lighting pass is implemented.
+- Current lighting is:
+  - ambient
+  - one directional diffuse light
+- Debug mode is implemented:
+  - press P to toggle
+  - albedo / normal / depth buffer previews are shown at the upper right
+
+
+==== next in plan ====
+
+1. alpha mask support
+- Sponza curtain / foliage / cutout materials should not render as solid opaque surfaces.
+- Use SceneRaw::Material.texture_alpha_mask.
+- In geometry pass, discard fragments when alpha mask says transparent.
+
+2. window resize support for deferred path
+- Right now G-buffer is initialized with startup size only.
+- On framebuffer resize, recreate G-buffer attachments with the new size.
+- Make projection aspect and deferred buffers stay in sync.
+
+3. debug view polish
+- Optionally add mode labels for albedo / normal / depth.
+- Optionally add individual toggles or cycling mode later if needed.
+
+4. material expansion
+- After alpha mask is stable, consider normal map support.
+- Tangent / bitangent data is already uploaded, so the path is prepared.
+
+5. later goal
+- Once deferred base is stable:
+  - more lights
+  - shadowing / SSAO style extensions
+  - or voxelization / voxel cone tracing preparation
+
+
+==== immediate next task ====
+
+가장 바로 다음 작업은 alpha mask support 이다.
+
+이유
+- deferred base는 이미 돌아가기 시작했다.
+- 지금 가장 눈에 띄는 correctness 문제는 cutout material 처리다.
+- alpha mask 처리가 끝나면 Sponza 장면 완성도가 눈에 띄게 올라간다.

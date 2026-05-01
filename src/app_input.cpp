@@ -9,11 +9,12 @@
 namespace {
     constexpr float CAMERA_MOVE_SPEED = 0.25f;
     constexpr float MOUSE_SENSITIVITY = 0.08f;
-    constexpr float SCROLL_SENSITIVITY = 2.0f;
 
     chr::Camera* g_camera = nullptr;
-    bool g_is_mouse_captured = true;
-    bool g_first_mouse_input = true;
+    bool g_toggle_debug_views_requested = false;
+    bool g_prev_p_pressed = false;
+    bool g_is_dragging = false;
+    bool g_has_drag_origin = false;
     double g_last_mouse_x = 0.0;
     double g_last_mouse_y = 0.0;
 
@@ -22,14 +23,16 @@ namespace {
     }
 
     void cursor_position_callback(GLFWwindow* window, double xpos, double ypos) {
-        if (!g_is_mouse_captured || g_camera == nullptr) {
+        (void)window;
+
+        if (g_camera == nullptr || !g_is_dragging) {
             return;
         }
 
-        if (g_first_mouse_input) {
+        if (!g_has_drag_origin) {
             g_last_mouse_x = xpos;
             g_last_mouse_y = ypos;
-            g_first_mouse_input = false;
+            g_has_drag_origin = true;
             return;
         }
 
@@ -41,19 +44,20 @@ namespace {
         g_camera->move_rotation(delta_x * MOUSE_SENSITIVITY, delta_y * MOUSE_SENSITIVITY);
     }
 
-    void scroll_callback(GLFWwindow* window, double xoffset, double yoffset) {
-        if (g_camera == nullptr) {
+    void mouse_button_callback(GLFWwindow* window, int button, int action, int mods) {
+        (void)window;
+        (void)mods;
+
+        if (button != GLFW_MOUSE_BUTTON_LEFT) {
             return;
         }
 
-        g_camera->move_zoom(static_cast<float>(-yoffset) * SCROLL_SENSITIVITY);
-    }
-
-    void mouse_button_callback(GLFWwindow* window, int button, int action, int mods) {
-        if (button == GLFW_MOUSE_BUTTON_LEFT && action == GLFW_PRESS && !g_is_mouse_captured) {
-            glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
-            g_is_mouse_captured = true;
-            g_first_mouse_input = true;
+        if (action == GLFW_PRESS) {
+            g_is_dragging = true;
+            g_has_drag_origin = false;
+        } else if (action == GLFW_RELEASE) {
+            g_is_dragging = false;
+            g_has_drag_origin = false;
         }
     }
 }
@@ -61,17 +65,18 @@ namespace {
 namespace app_input {
 
     void initialize(GLFWwindow* window, chr::Camera* camera, int screen_width, int screen_height) {
+        (void)screen_width;
+        (void)screen_height;
+
         g_camera = camera;
-        g_is_mouse_captured = true;
-        g_first_mouse_input = true;
-        g_last_mouse_x = static_cast<double>(screen_width) * 0.5;
-        g_last_mouse_y = static_cast<double>(screen_height) * 0.5;
+        g_toggle_debug_views_requested = false;
+        g_prev_p_pressed = false;
+        g_is_dragging = false;
+        g_has_drag_origin = false;
 
         glfwSetFramebufferSizeCallback(window, framebuffer_size_callback);
         glfwSetCursorPosCallback(window, cursor_position_callback);
-        glfwSetScrollCallback(window, scroll_callback);
         glfwSetMouseButtonCallback(window, mouse_button_callback);
-        glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
     }
 
     void process_input(GLFWwindow* window) {
@@ -80,12 +85,14 @@ namespace app_input {
         }
 
         if (glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_PRESS) {
-            if (g_is_mouse_captured) {
-                glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_NORMAL);
-                g_is_mouse_captured = false;
-                g_first_mouse_input = true;
-            }
+            glfwSetWindowShouldClose(window, true);
         }
+
+        const bool is_p_pressed = glfwGetKey(window, GLFW_KEY_P) == GLFW_PRESS;
+        if (is_p_pressed && !g_prev_p_pressed) {
+            g_toggle_debug_views_requested = true;
+        }
+        g_prev_p_pressed = is_p_pressed;
 
         if (glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS)
             g_camera->position += CAMERA_MOVE_SPEED * g_camera->dir_front;
@@ -99,6 +106,12 @@ namespace app_input {
             g_camera->position += CAMERA_MOVE_SPEED * g_camera->dir_up;
         if (glfwGetKey(window, GLFW_KEY_LEFT_SHIFT) == GLFW_PRESS)
             g_camera->position -= CAMERA_MOVE_SPEED * g_camera->dir_up;
+    }
+
+    bool consume_toggle_debug_views_requested() {
+        const bool requested = g_toggle_debug_views_requested;
+        g_toggle_debug_views_requested = false;
+        return requested;
     }
 
 }

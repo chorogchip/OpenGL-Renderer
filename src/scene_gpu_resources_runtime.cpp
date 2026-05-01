@@ -1,4 +1,4 @@
-#include "scene_gpu_resources.h"
+#include "scene_gpu_resources_runtime.h"
 
 #include <cstddef>
 #include <iostream>
@@ -10,10 +10,6 @@
 namespace {
     constexpr const char* VERTEX_SHADER_PATH = "assets/shaders/scene.vert";
     constexpr const char* FRAGMENT_SHADER_PATH = "assets/shaders/scene.frag";
-    const glm::vec3 LIGHT_DIRECTION = glm::normalize(glm::vec3(-0.6f, -1.0f, -0.35f));
-    const glm::vec3 LIGHT_COLOR = glm::vec3(1.0f, 0.98f, 0.92f);
-    constexpr float AMBIENT_STRENGTH = 0.32f;
-    constexpr float DIFFUSE_STRENGTH = 0.85f;
 
     uint32_t create_fallback_texture() {
         uint32_t texture = 0;
@@ -32,11 +28,10 @@ namespace {
     }
 }
 
-
 namespace chr {
 
-    int SceneGPUResources::init(const SceneRaw& scene_raw) {
-        clear();
+    int init_scene_gpu_resources(SceneGPUResources* resources, const SceneRaw& scene_raw) {
+        clear_scene_gpu_resources(resources);
 
         unsigned vertex_shader = graphics_util::compile_shader_from_file(
             GL_VERTEX_SHADER, VERTEX_SHADER_PATH);
@@ -65,16 +60,12 @@ namespace chr {
         }
         glDeleteShader(vertex_shader);
         glDeleteShader(fragment_shader);
-        this->shader_program = shader_program;
-        this->uniform_model = glGetUniformLocation(this->shader_program, "model");
-        this->uniform_view = glGetUniformLocation(this->shader_program, "view");
-        this->uniform_projection = glGetUniformLocation(this->shader_program, "projection");
-        this->uniform_texture_diffuse = glGetUniformLocation(this->shader_program, "uTexture");
-        this->uniform_light_direction = glGetUniformLocation(this->shader_program, "uLightDirection");
-        this->uniform_light_color = glGetUniformLocation(this->shader_program, "uLightColor");
-        this->uniform_ambient_strength = glGetUniformLocation(this->shader_program, "uAmbientStrength");
-        this->uniform_diffuse_strength = glGetUniformLocation(this->shader_program, "uDiffuseStrength");
-        this->fallback_texture_diffuse = create_fallback_texture();
+        resources->shader_program = shader_program;
+        resources->uniform_model = glGetUniformLocation(resources->shader_program, "model");
+        resources->uniform_view = glGetUniformLocation(resources->shader_program, "view");
+        resources->uniform_projection = glGetUniformLocation(resources->shader_program, "projection");
+        resources->uniform_texture_diffuse = glGetUniformLocation(resources->shader_program, "uTexture");
+        resources->fallback_texture_diffuse = create_fallback_texture();
 
         for (const auto& mesh_raw : scene_raw.meshes) {
 
@@ -82,7 +73,7 @@ namespace chr {
             glGenVertexArrays(1, &VAO);
             glGenBuffers(1, &VBO);
             glGenBuffers(1, &EBO);
-            this->meshes.push_back({ VAO, VBO, EBO,
+            resources->meshes.push_back({ VAO, VBO, EBO,
                 static_cast<uint32_t>(mesh_raw.indices.size()),
                 mesh_raw.material_index });
 
@@ -115,8 +106,8 @@ namespace chr {
         for (const auto& material_raw : scene_raw.materials) {
             const uint32_t texture_diffuse =
                 graphics_util::load_texture_2d(material_raw.texture_diffuse);
-            this->materials.push_back({
-                texture_diffuse != 0 ? texture_diffuse : this->fallback_texture_diffuse,
+            resources->materials.push_back({
+                texture_diffuse != 0 ? texture_diffuse : resources->fallback_texture_diffuse,
                 0,
                 0
             });
@@ -125,64 +116,57 @@ namespace chr {
         return 0;
     }
 
-    void SceneGPUResources::clear() {
-        for (const auto& mesh : this->meshes) {
+    void clear_scene_gpu_resources(SceneGPUResources* resources) {
+        for (const auto& mesh : resources->meshes) {
             glDeleteVertexArrays(1, &mesh.VAO);
             glDeleteBuffers(1, &mesh.VBO);
             glDeleteBuffers(1, &mesh.EBO);
         }
-        this->meshes.clear();
+        resources->meshes.clear();
 
-        for (const auto& material : this->materials) {
+        for (const auto& material : resources->materials) {
             if (material.texture_diffuse != 0 &&
-                material.texture_diffuse != this->fallback_texture_diffuse) {
+                material.texture_diffuse != resources->fallback_texture_diffuse) {
                 glDeleteTextures(1, &material.texture_diffuse);
             }
         }
-        this->materials.clear();
+        resources->materials.clear();
 
-        if (this->fallback_texture_diffuse != 0) {
-            glDeleteTextures(1, &this->fallback_texture_diffuse);
-            this->fallback_texture_diffuse = 0;
+        if (resources->fallback_texture_diffuse != 0) {
+            glDeleteTextures(1, &resources->fallback_texture_diffuse);
+            resources->fallback_texture_diffuse = 0;
         }
 
-        if (this->shader_program != 0) {
-            glDeleteProgram(this->shader_program);
-            this->shader_program = 0;
+        if (resources->shader_program != 0) {
+            glDeleteProgram(resources->shader_program);
+            resources->shader_program = 0;
         }
 
-        this->uniform_model = -1;
-        this->uniform_view = -1;
-        this->uniform_projection = -1;
-        this->uniform_texture_diffuse = -1;
-        this->uniform_light_direction = -1;
-        this->uniform_light_color = -1;
-        this->uniform_ambient_strength = -1;
-        this->uniform_diffuse_strength = -1;
+        resources->uniform_model = -1;
+        resources->uniform_view = -1;
+        resources->uniform_projection = -1;
+        resources->uniform_texture_diffuse = -1;
     }
 
-    void SceneGPUResources::draw(const SceneDrawParams& draw_params)
-    {
-        glUseProgram(this->shader_program);
-        glUniform1i(this->uniform_texture_diffuse, 0);
-        glUniform3fv(this->uniform_light_direction, 1, &LIGHT_DIRECTION[0]);
-        glUniform3fv(this->uniform_light_color, 1, &LIGHT_COLOR[0]);
-        glUniform1f(this->uniform_ambient_strength, AMBIENT_STRENGTH);
-        glUniform1f(this->uniform_diffuse_strength, DIFFUSE_STRENGTH);
+    void render_scene_gpu_resources(
+        const SceneGPUResources& resources,
+        const SceneDrawParams& draw_params) {
+        glUseProgram(resources.shader_program);
+        glUniform1i(resources.uniform_texture_diffuse, 0);
         glUniformMatrix4fv(
-            this->uniform_model,
+            resources.uniform_model,
             1, GL_FALSE, &draw_params.mat_model[0][0]);
         glUniformMatrix4fv(
-            this->uniform_view,
+            resources.uniform_view,
             1, GL_FALSE, &draw_params.mat_view[0][0]);
         glUniformMatrix4fv(
-            this->uniform_projection,
+            resources.uniform_projection,
             1, GL_FALSE, &draw_params.mat_projection[0][0]);
 
-        for (const auto& mesh : this->meshes) {
-            uint32_t texture_diffuse = this->fallback_texture_diffuse;
-            if (mesh.material_index < this->materials.size()) {
-                texture_diffuse = this->materials[mesh.material_index].texture_diffuse;
+        for (const auto& mesh : resources.meshes) {
+            uint32_t texture_diffuse = resources.fallback_texture_diffuse;
+            if (mesh.material_index < resources.materials.size()) {
+                texture_diffuse = resources.materials[mesh.material_index].texture_diffuse;
             }
 
             glActiveTexture(GL_TEXTURE0);
