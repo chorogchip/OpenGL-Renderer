@@ -10,6 +10,10 @@
 namespace {
     constexpr const char* VERTEX_SHADER_PATH = "assets/shaders/scene.vert";
     constexpr const char* FRAGMENT_SHADER_PATH = "assets/shaders/scene.frag";
+    const glm::vec3 LIGHT_DIRECTION = glm::normalize(glm::vec3(-0.6f, -1.0f, -0.35f));
+    const glm::vec3 LIGHT_COLOR = glm::vec3(1.0f, 0.98f, 0.92f);
+    constexpr float AMBIENT_STRENGTH = 0.32f;
+    constexpr float DIFFUSE_STRENGTH = 0.85f;
 
     uint32_t create_fallback_texture() {
         uint32_t texture = 0;
@@ -66,6 +70,10 @@ namespace chr {
         this->uniform_view = glGetUniformLocation(this->shader_program, "view");
         this->uniform_projection = glGetUniformLocation(this->shader_program, "projection");
         this->uniform_texture_diffuse = glGetUniformLocation(this->shader_program, "uTexture");
+        this->uniform_light_direction = glGetUniformLocation(this->shader_program, "uLightDirection");
+        this->uniform_light_color = glGetUniformLocation(this->shader_program, "uLightColor");
+        this->uniform_ambient_strength = glGetUniformLocation(this->shader_program, "uAmbientStrength");
+        this->uniform_diffuse_strength = glGetUniformLocation(this->shader_program, "uDiffuseStrength");
         this->fallback_texture_diffuse = create_fallback_texture();
 
         for (const auto& mesh_raw : scene_raw.meshes) {
@@ -147,12 +155,20 @@ namespace chr {
         this->uniform_view = -1;
         this->uniform_projection = -1;
         this->uniform_texture_diffuse = -1;
+        this->uniform_light_direction = -1;
+        this->uniform_light_color = -1;
+        this->uniform_ambient_strength = -1;
+        this->uniform_diffuse_strength = -1;
     }
 
     void SceneGPUResources::draw(const SceneDrawParams& draw_params)
     {
         glUseProgram(this->shader_program);
         glUniform1i(this->uniform_texture_diffuse, 0);
+        glUniform3fv(this->uniform_light_direction, 1, &LIGHT_DIRECTION[0]);
+        glUniform3fv(this->uniform_light_color, 1, &LIGHT_COLOR[0]);
+        glUniform1f(this->uniform_ambient_strength, AMBIENT_STRENGTH);
+        glUniform1f(this->uniform_diffuse_strength, DIFFUSE_STRENGTH);
         glUniformMatrix4fv(
             this->uniform_model,
             1, GL_FALSE, &draw_params.mat_model[0][0]);
