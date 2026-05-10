@@ -8,7 +8,6 @@
 
 namespace {
     constexpr const char* IMGUI_GLSL_VERSION = "#version 330";
-    bool g_show_demo_window = true;
 }
 
 namespace imgui_layer {
@@ -45,15 +44,17 @@ namespace imgui_layer {
         ImGui::NewFrame();
     }
 
-    void draw_overlay() {
+    void draw_overlay(bool* show_debug_views, bool* show_light_markers) {
         ImGui::Begin("Renderer");
-        ImGui::Text("Dear ImGui integrated.");
-        ImGui::Checkbox("Show Demo Window", &g_show_demo_window);
+        ImGui::Text("Render Controls");
+        ImGui::Separator();
+        ImGui::Checkbox("Debug G-buffer Views", show_debug_views);
+        ImGui::Checkbox("Point Light Markers", show_light_markers);
+        ImGui::Separator();
+        ImGui::TextUnformatted("W/A/S/D: move");
+        ImGui::TextUnformatted("Left drag: rotate camera");
+        ImGui::TextUnformatted("P/O: keyboard toggles");
         ImGui::End();
-
-        if (g_show_demo_window) {
-            ImGui::ShowDemoWindow(&g_show_demo_window);
-        }
     }
 
     void end_frame() {
