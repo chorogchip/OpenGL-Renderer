@@ -28,7 +28,7 @@ int main() {
     glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 5);
     glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
 
-    GLFWwindow* window = glfwCreateWindow(SCREEN_WIDTH, SCREEN_HEIGHT, "Voxel Cone Tracing", NULL, NULL);
+    GLFWwindow* window = glfwCreateWindow(SCREEN_WIDTH, SCREEN_HEIGHT, "OpenGL-Renderer", NULL, NULL);
     if (window == nullptr) {
         std::cout << "Failed to create GLFW window" << std::endl;
         glfwTerminate();
@@ -147,7 +147,7 @@ int main() {
         if (show_debug_views) {
             g_buffer_resources.draw_debug_views();
         }
-        imgui_layer::draw_overlay();
+        imgui_layer::draw_overlay(&show_debug_views, &show_light_markers);
         imgui_layer::end_frame();
 
         glfwSwapBuffers(window);

@@ -3,6 +3,7 @@
 #include <glad/glad.h>
 #include <GLFW/glfw3.h>
 #include <glm/glm.hpp>
+#include <imgui.h>
 
 #include "camera.h"
 
@@ -26,6 +27,10 @@ namespace {
 
     void cursor_position_callback(GLFWwindow* window, double xpos, double ypos) {
         (void)window;
+
+        if (ImGui::GetCurrentContext() != nullptr && ImGui::GetIO().WantCaptureMouse) {
+            return;
+        }
 
         if (g_camera == nullptr || !g_is_dragging) {
             return;
@@ -51,6 +56,12 @@ namespace {
         (void)mods;
 
         if (button != GLFW_MOUSE_BUTTON_LEFT) {
+            return;
+        }
+
+        if (ImGui::GetCurrentContext() != nullptr && ImGui::GetIO().WantCaptureMouse) {
+            g_is_dragging = false;
+            g_has_drag_origin = false;
             return;
         }
 
@@ -88,21 +99,27 @@ namespace app_input {
             return;
         }
 
+        const bool wants_keyboard = ImGui::GetCurrentContext() != nullptr && ImGui::GetIO().WantCaptureKeyboard;
+
         if (glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_PRESS) {
             glfwSetWindowShouldClose(window, true);
         }
 
-        const bool is_p_pressed = glfwGetKey(window, GLFW_KEY_P) == GLFW_PRESS;
+        const bool is_p_pressed = !wants_keyboard && glfwGetKey(window, GLFW_KEY_P) == GLFW_PRESS;
         if (is_p_pressed && !g_prev_p_pressed) {
             g_toggle_debug_views_requested = true;
         }
         g_prev_p_pressed = is_p_pressed;
 
-        const bool is_o_pressed = glfwGetKey(window, GLFW_KEY_O) == GLFW_PRESS;
+        const bool is_o_pressed = !wants_keyboard && glfwGetKey(window, GLFW_KEY_O) == GLFW_PRESS;
         if (is_o_pressed && !g_prev_o_pressed) {
             g_toggle_light_markers_requested = true;
         }
         g_prev_o_pressed = is_o_pressed;
+
+        if (wants_keyboard) {
+            return;
+        }
 
         if (glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS)
             g_camera->position += CAMERA_MOVE_SPEED * g_camera->dir_front;

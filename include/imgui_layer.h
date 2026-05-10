@@ -6,6 +6,6 @@ namespace imgui_layer {
     int init(GLFWwindow* window);
     void shutdown();
     void begin_frame();
-    void draw_overlay();
+    void draw_overlay(bool* show_debug_views, bool* show_light_markers);
     void end_frame();
 }

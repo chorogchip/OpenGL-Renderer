@@ -9,9 +9,6 @@
 /external/stb_image.cpp
 /external/stb_image.h
 
-# Large local assets you do not want to commit
-/assets/Sponza-master/
-
 # CMake and generated build outputs
 /out/
 /build/

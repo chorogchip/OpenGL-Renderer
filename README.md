@@ -1,54 +1,36 @@
-# projOpenGL
+# OpenGL-Renderer
 
-C++ OpenGL renderer project built with CMake. The current app opens a GLFW window, initializes GLAD, loads the Sponza OBJ scene, uploads mesh data to the GPU, and renders it with a simple textured shader.
+deffered rendering, shadow, SSAO를 사용해 Sponza를 렌더링하는 OpenGL 렌더러입니다.
 
-## Current state
+![](./screenshot1.png)
 
-- Language: C++17
-- Build system: CMake
-- Window/context: GLFW
-- OpenGL loader: GLAD
-- Math: GLM
-- Image loading: `stb_image`
-- Model import: Assimp
-- Sample asset: Sponza scene from a local `assets/Sponza-master/` directory
+## 렌더링
 
-## External libraries
+- G-buffer: albedo, normal, depth를 저장합니다.
+- geometry pass, deferred lighting pass를 수행합니다.
+- blur pass를 포함한 SSAO를 계산합니다.
 
-The project can use third-party code from `external/` when those folders already exist locally, but a clean clone does not require them anymore.
-
-- `external/assimp`: imports mesh and material data from model files. The current renderer uses it to load the Sponza OBJ scene into the project's raw scene structures.
-- `external/glad`: loads OpenGL function pointers at runtime so the application can call modern OpenGL APIs after creating a context.
-- `external/glfw`: creates the window and OpenGL context, and handles input and the main event loop.
-- `external/glm`: provides vector and matrix math used for transforms, camera state, and projection/view calculations.
-- `external/stb_image.h`: loads texture image files into CPU memory before uploading them to OpenGL textures.
-
-If those directories are missing, CMake now fetches them during configure from their upstream repositories. The fetched set is:
+## 라이브러리
 
 - GLFW `3.4`
 - Assimp `v6.0.4`
 - GLM `1.0.3`
 - GLAD `v0.1.36` generated through the upstream CMake helper
-- `stb` from `master` for `stb_image.h`
+- `stb` for `stb_image.h`
+- Dear ImGui `v1.92.7`
 
-For the fetched GLAD path, Python is required at configure time because the loader source is generated locally.
-
-## Assets
-
-The renderer expects local assets under `assets/`.
-
-- `assets/Sponza-master/`: Sponza OBJ scene and textures used as the current test scene
-- `assets/texture.png`: texture used by the simple shader path
-
-Like the local dependency directories above, the Sponza scene directory is expected in the working tree but is not intended to be tracked by git in this repo configuration.
-
-## Build
-
-This project uses CMake `FetchContent` for missing third-party libraries and links OpenGL through `find_package(OpenGL)`.
+## 빌드
 
 ```powershell
-cmake -S . -B out/build
-cmake --build out/build --config Debug
+cmake --preset windows-debug
+cmake --build --preset windows-debug
 ```
 
-If you use Visual Studio, CMake may also generate additional files under `.vs/` and `out/`.
+## 조작
+
+- `W/A/S/D`: 카메라 이동
+- `Space / Left Shift`: 위/아래 이동
+- 마우스 왼쪽 드래그: 카메라 회전
+- `P`: debug buffer preview 토글
+- `O`: point light marker 토글
+- `Esc`: 애플리케이션 종료
