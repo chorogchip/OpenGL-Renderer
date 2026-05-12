@@ -40,6 +40,40 @@ namespace graphics_util {
 		return compile_shader(type, source.c_str());
 	}
 
+	unsigned create_shader_program_from_files(
+		const std::string& vertex_shader_path,
+		const std::string& fragment_shader_path) {
+		unsigned vertex_shader = compile_shader_from_file(GL_VERTEX_SHADER, vertex_shader_path);
+		if (vertex_shader == 0) {
+			return 0;
+		}
+
+		unsigned fragment_shader = compile_shader_from_file(GL_FRAGMENT_SHADER, fragment_shader_path);
+		if (fragment_shader == 0) {
+			glDeleteShader(vertex_shader);
+			return 0;
+		}
+
+		unsigned shader_program = glCreateProgram();
+		glAttachShader(shader_program, vertex_shader);
+		glAttachShader(shader_program, fragment_shader);
+		glLinkProgram(shader_program);
+
+		int succeed = 0;
+		glGetProgramiv(shader_program, GL_LINK_STATUS, &succeed);
+		if (!succeed) {
+			char log_buf[512];
+			glGetProgramInfoLog(shader_program, 512, nullptr, log_buf);
+			std::cout << "Err: Shader program link failed: " << log_buf << std::endl;
+			glDeleteProgram(shader_program);
+			shader_program = 0;
+		}
+
+		glDeleteShader(vertex_shader);
+		glDeleteShader(fragment_shader);
+		return shader_program;
+	}
+
 	uint32_t load_texture_2d(const std::string& filename) {
 		if (filename.empty()) {
 			return 0;

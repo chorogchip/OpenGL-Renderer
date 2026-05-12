@@ -33,33 +33,11 @@ namespace chr {
     int init_scene_gpu_resources(SceneGPUResources* resources, const SceneRaw& scene_raw) {
         clear_scene_gpu_resources(resources);
 
-        unsigned vertex_shader = graphics_util::compile_shader_from_file(
-            GL_VERTEX_SHADER, VERTEX_SHADER_PATH);
-        if (vertex_shader == 0) return -1;
-        unsigned fragment_shader = graphics_util::compile_shader_from_file(
-            GL_FRAGMENT_SHADER, FRAGMENT_SHADER_PATH);
-        if (fragment_shader == 0) {
-            glDeleteShader(vertex_shader);
+        unsigned shader_program = graphics_util::create_shader_program_from_files(
+            VERTEX_SHADER_PATH, FRAGMENT_SHADER_PATH);
+        if (shader_program == 0) {
             return -1;
         }
-
-        unsigned shader_program = glCreateProgram();
-        glAttachShader(shader_program, vertex_shader);
-        glAttachShader(shader_program, fragment_shader);
-        glLinkProgram(shader_program);
-
-        int succeed;
-        glGetProgramiv(shader_program, GL_LINK_STATUS, &succeed);
-        if (!succeed) {
-            char log_buf[512];
-            glGetProgramInfoLog(shader_program, 512, nullptr, log_buf);
-            std::cout << "Err: Shader program link failed: " << log_buf << std::endl;
-            glDeleteShader(vertex_shader);
-            glDeleteShader(fragment_shader);
-            return -1;
-        }
-        glDeleteShader(vertex_shader);
-        glDeleteShader(fragment_shader);
         resources->shader_program = shader_program;
         resources->uniform_model = glGetUniformLocation(resources->shader_program, "model");
         resources->uniform_view = glGetUniformLocation(resources->shader_program, "view");
@@ -68,37 +46,12 @@ namespace chr {
         resources->uniform_texture_normal = glGetUniformLocation(resources->shader_program, "uNormalTexture");
         resources->uniform_texture_alpha_mask = glGetUniformLocation(resources->shader_program, "uAlphaMaskTexture");
 
-        unsigned shadow_vertex_shader = graphics_util::compile_shader_from_file(
-            GL_VERTEX_SHADER, SHADOW_VERTEX_SHADER_PATH);
-        if (shadow_vertex_shader == 0) {
+        resources->shadow_shader_program = graphics_util::create_shader_program_from_files(
+            SHADOW_VERTEX_SHADER_PATH, SHADOW_FRAGMENT_SHADER_PATH);
+        if (resources->shadow_shader_program == 0) {
             clear_scene_gpu_resources(resources);
             return -1;
         }
-        unsigned shadow_fragment_shader = graphics_util::compile_shader_from_file(
-            GL_FRAGMENT_SHADER, SHADOW_FRAGMENT_SHADER_PATH);
-        if (shadow_fragment_shader == 0) {
-            glDeleteShader(shadow_vertex_shader);
-            clear_scene_gpu_resources(resources);
-            return -1;
-        }
-
-        resources->shadow_shader_program = glCreateProgram();
-        glAttachShader(resources->shadow_shader_program, shadow_vertex_shader);
-        glAttachShader(resources->shadow_shader_program, shadow_fragment_shader);
-        glLinkProgram(resources->shadow_shader_program);
-
-        glGetProgramiv(resources->shadow_shader_program, GL_LINK_STATUS, &succeed);
-        if (!succeed) {
-            char log_buf[512];
-            glGetProgramInfoLog(resources->shadow_shader_program, 512, nullptr, log_buf);
-            std::cout << "Err: Shadow shader program link failed: " << log_buf << std::endl;
-            glDeleteShader(shadow_vertex_shader);
-            glDeleteShader(shadow_fragment_shader);
-            clear_scene_gpu_resources(resources);
-            return -1;
-        }
-        glDeleteShader(shadow_vertex_shader);
-        glDeleteShader(shadow_fragment_shader);
         resources->uniform_shadow_model = glGetUniformLocation(resources->shadow_shader_program, "model");
         resources->uniform_shadow_light_view_projection =
             glGetUniformLocation(resources->shadow_shader_program, "uLightViewProjection");
