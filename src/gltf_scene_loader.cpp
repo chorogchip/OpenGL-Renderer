@@ -31,6 +31,26 @@ namespace chr {
             return value / length;
         }
 
+        glm::vec3 to_glm_vec3(const fastgltf::math::nvec3& value) {
+            return { value[0], value[1], value[2] };
+        }
+
+        glm::vec4 to_glm_vec4(const fastgltf::math::nvec4& value) {
+            return { value[0], value[1], value[2], value[3] };
+        }
+
+        SceneRaw::AlphaMode to_scene_alpha_mode(const fastgltf::AlphaMode alpha_mode) {
+            switch (alpha_mode) {
+            case fastgltf::AlphaMode::Mask:
+                return SceneRaw::AlphaMode::Mask;
+            case fastgltf::AlphaMode::Blend:
+                return SceneRaw::AlphaMode::Blend;
+            case fastgltf::AlphaMode::Opaque:
+            default:
+                return SceneRaw::AlphaMode::Opaque;
+            }
+        }
+
         template <typename OptionalTextureInfoType>
         std::string get_texture_image_path(
             const fastgltf::Asset& asset,
@@ -76,6 +96,14 @@ namespace chr {
                 asset, model_dir, material.occlusionTexture);
             out_material.texture_emissive = get_texture_image_path(
                 asset, model_dir, material.emissiveTexture);
+
+            out_material.base_color_factor = to_glm_vec4(material.pbrData.baseColorFactor);
+            out_material.emissive_factor = to_glm_vec3(material.emissiveFactor) * material.emissiveStrength;
+            out_material.metallic_factor = material.pbrData.metallicFactor;
+            out_material.roughness_factor = material.pbrData.roughnessFactor;
+            out_material.alpha_cutoff = material.alphaCutoff;
+            out_material.alpha_mode = to_scene_alpha_mode(material.alphaMode);
+            out_material.double_sided = material.doubleSided;
 
             if (material.alphaMode == fastgltf::AlphaMode::Mask ||
                 material.alphaMode == fastgltf::AlphaMode::Blend) {
