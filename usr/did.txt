@@ -1,0 +1,82 @@
+Work Summary for 2026-05-12
+===========================
+
+Today I moved the renderer toward a larger Intel Sponza / glTF-based project and improved the loading pipeline.
+
+Commits Reviewed
+----------------
+
+- a7707fb Prepare scene loader for GLTF assets
+- 16812ea docs: credit Sponza 2022 scene
+- 06f6153 feat: load and frame Intel Sponza scene
+- 860bfca Handle downloaded Sponza assets
+- 8f60a9f Add async scene loading scaffold
+- 64315c9 feat: show loading screen during async scene load
+- b7ae5d2 Refactor GLTF scene loading into dedicated module
+- 6d0f7d4 Add renderer implementation plan
+- ff71970 Centralize shader program creation
+- 73787b2 feat: report weighted loading progress
+- 17fe18c Update implementation plan with current project state
+- e7e766b Import glTF material factors
+- b3a469e feat: incrementally upload scene resources during loading
+
+What I Did
+----------
+
+1. Prepared the asset pipeline for Intel Sponza.
+   - Switched the project toward glTF scene loading.
+   - Added Intel Sponza credits to README.
+   - Added CMake support so a fresh clone can download the large Sponza scene automatically when it is missing.
+   - Ignored assets/main_sponza so the multi-GB scene is not pushed to git.
+   - Avoided copying the Sponza scene into the build output; the executable uses the source asset path instead.
+
+2. Reworked scene loading around glTF.
+   - Prepared model_loader for glTF assets.
+   - Added/used fastgltf-based loading for Intel Sponza.
+   - Loaded and framed the Intel Sponza scene automatically from vertex bounds.
+   - Refactored glTF loading into a dedicated gltf_scene_loader module.
+   - Left model_loader as a format-dispatch layer.
+
+3. Improved startup and loading UX.
+   - Added an async scene loading scaffold.
+   - Added a loading screen while CPU scene loading runs.
+   - Added weighted loading progress for scene file load, framebuffer setup, and GPU resource upload.
+   - Changed scene GPU upload to happen incrementally during loading so the UI can continue updating.
+
+4. Improved renderer utility code.
+   - Centralized shader program creation in graphics_util.
+   - Reduced repeated shader compile/link code in scene GPU resource setup.
+
+5. Started moving material handling toward PBR.
+   - Imported glTF material factors into SceneRaw.
+   - Began tracking material data needed for metallic-roughness rendering.
+
+6. Wrote and corrected project planning docs.
+   - Added usr/implementation_plan.txt.
+   - Updated the plan so it mirrors the real current project state:
+     async loading, dedicated glTF loader, GPU upload progress, current deferred/shadow/SSAO path, current material limitations, and the next implementation steps.
+
+Current Result
+--------------
+
+The project now has a stronger Sponza/glTF foundation:
+
+- Fresh clone/build can recover the large Sponza scene through CMake.
+- The app can load the Sponza glTF scene and frame it.
+- Scene loading is asynchronous with a visible loading screen.
+- GPU resource upload reports progress instead of blocking silently.
+- glTF loading is separated into its own module.
+- Shader creation is more centralized.
+- Material data is starting to include PBR-relevant factors.
+
+Main Remaining Direction
+------------------------
+
+Next work should focus on:
+
+- Splitting main.cpp into smaller runtime/loading/render modules.
+- Adding scene/frame stats to ImGui.
+- Uploading full PBR material data to GPU resources.
+- Expanding the G-buffer for metallic, roughness, AO, and emissive.
+- Replacing Lambert lighting with GGX metallic-roughness PBR.
+- Adding HDR tone mapping, then IBL and bloom.
