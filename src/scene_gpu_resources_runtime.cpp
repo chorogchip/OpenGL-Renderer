@@ -38,21 +38,38 @@ namespace {
             progress_callback(progress, message);
         }
     }
-}
 
-namespace chr {
+    float calculate_mesh_progress(const chr::SceneGPUInitState& state) {
+        if (state.scene_raw == nullptr || state.scene_raw->meshes.empty()) {
+            return GPU_PROGRESS_SHADER_WEIGHT + GPU_PROGRESS_MESH_WEIGHT;
+        }
 
-    int init_scene_gpu_resources(
-        SceneGPUResources* resources,
-        const SceneRaw& scene_raw,
-        const SceneGPUProgressCallback& progress_callback) {
-        clear_scene_gpu_resources(resources);
-        report_progress(progress_callback, 0.0f, "Compiling scene shaders...");
+        return GPU_PROGRESS_SHADER_WEIGHT +
+            GPU_PROGRESS_MESH_WEIGHT *
+            (static_cast<float>(state.mesh_index) / static_cast<float>(state.scene_raw->meshes.size()));
+    }
+
+    float calculate_material_progress(const chr::SceneGPUInitState& state) {
+        if (state.scene_raw == nullptr || state.scene_raw->materials.empty()) {
+            return 1.0f;
+        }
+
+        constexpr float MATERIAL_TEXTURE_STEPS = 4.0f;
+        const float completed_steps =
+            static_cast<float>(state.material_index) * MATERIAL_TEXTURE_STEPS +
+            static_cast<float>(state.material_texture_step);
+        const float total_steps =
+            static_cast<float>(state.scene_raw->materials.size()) * MATERIAL_TEXTURE_STEPS;
+        return GPU_PROGRESS_SHADER_WEIGHT + GPU_PROGRESS_MESH_WEIGHT +
+            GPU_PROGRESS_MATERIAL_WEIGHT * (completed_steps / total_steps);
+    }
+
+    bool init_scene_gpu_shaders(chr::SceneGPUResources* resources) {
 
         unsigned shader_program = graphics_util::create_shader_program_from_files(
             VERTEX_SHADER_PATH, FRAGMENT_SHADER_PATH);
         if (shader_program == 0) {
-            return -1;
+            return false;
         }
         resources->shader_program = shader_program;
         resources->uniform_model = glGetUniformLocation(resources->shader_program, "model");
@@ -65,8 +82,7 @@ namespace chr {
         resources->shadow_shader_program = graphics_util::create_shader_program_from_files(
             SHADOW_VERTEX_SHADER_PATH, SHADOW_FRAGMENT_SHADER_PATH);
         if (resources->shadow_shader_program == 0) {
-            clear_scene_gpu_resources(resources);
-            return -1;
+            return false;
         }
         resources->uniform_shadow_model = glGetUniformLocation(resources->shadow_shader_program, "model");
         resources->uniform_shadow_light_view_projection =
@@ -78,74 +94,162 @@ namespace chr {
         constexpr unsigned char flat_normal_pixel[] = { 128, 128, 255, 255 };
         resources->fallback_texture_diffuse = create_fallback_texture(white_pixel);
         resources->fallback_texture_normal = create_fallback_texture(flat_normal_pixel);
-        report_progress(progress_callback, GPU_PROGRESS_SHADER_WEIGHT, "Uploading mesh buffers...");
+        return true;
+    }
 
-        const float mesh_progress_step = scene_raw.meshes.empty()
-            ? 0.0f
-            : GPU_PROGRESS_MESH_WEIGHT / static_cast<float>(scene_raw.meshes.size());
-        float gpu_progress = GPU_PROGRESS_SHADER_WEIGHT;
-        for (const auto& mesh_raw : scene_raw.meshes) {
+    void upload_scene_mesh(
+        chr::SceneGPUResources* resources,
+        const chr::SceneRaw::Mesh& mesh_raw) {
+        unsigned VAO, VBO, EBO;
+        glGenVertexArrays(1, &VAO);
+        glGenBuffers(1, &VBO);
+        glGenBuffers(1, &EBO);
+        resources->meshes.push_back({ VAO, VBO, EBO,
+            static_cast<uint32_t>(mesh_raw.indices.size()),
+            mesh_raw.material_index });
 
-            unsigned VAO, VBO, EBO;
-            glGenVertexArrays(1, &VAO);
-            glGenBuffers(1, &VBO);
-            glGenBuffers(1, &EBO);
-            resources->meshes.push_back({ VAO, VBO, EBO,
-                static_cast<uint32_t>(mesh_raw.indices.size()),
-                mesh_raw.material_index });
+        glBindVertexArray(VAO);
+        glBindBuffer(GL_ARRAY_BUFFER, VBO);
+        glBufferData(GL_ARRAY_BUFFER, mesh_raw.vertices.size() * sizeof(mesh_raw.vertices[0]),
+            mesh_raw.vertices.data(), GL_STATIC_DRAW);
+        glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, EBO);
+        glBufferData(GL_ELEMENT_ARRAY_BUFFER, mesh_raw.indices.size() * sizeof(mesh_raw.indices[0]),
+            mesh_raw.indices.data(), GL_STATIC_DRAW);
 
-            glBindVertexArray(VAO);
-            glBindBuffer(GL_ARRAY_BUFFER, VBO);
-            glBufferData(GL_ARRAY_BUFFER, mesh_raw.vertices.size() * sizeof(mesh_raw.vertices[0]),
-                mesh_raw.vertices.data(), GL_STATIC_DRAW);
-            glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, EBO);
-            glBufferData(GL_ELEMENT_ARRAY_BUFFER, mesh_raw.indices.size() * sizeof(mesh_raw.indices[0]),
-                mesh_raw.indices.data(), GL_STATIC_DRAW);
+        glEnableVertexAttribArray(0);
+        glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(chr::SceneRaw::Mesh::Vertex),
+            (void*)offsetof(chr::SceneRaw::Mesh::Vertex, position));
+        glEnableVertexAttribArray(1);
+        glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, sizeof(chr::SceneRaw::Mesh::Vertex),
+            (void*)offsetof(chr::SceneRaw::Mesh::Vertex, tex_coord));
+        glEnableVertexAttribArray(2);
+        glVertexAttribPointer(2, 3, GL_FLOAT, GL_FALSE, sizeof(chr::SceneRaw::Mesh::Vertex),
+            (void*)offsetof(chr::SceneRaw::Mesh::Vertex, normal));
+        glEnableVertexAttribArray(3);
+        glVertexAttribPointer(3, 3, GL_FLOAT, GL_FALSE, sizeof(chr::SceneRaw::Mesh::Vertex),
+            (void*)offsetof(chr::SceneRaw::Mesh::Vertex, tangent));
+        glEnableVertexAttribArray(4);
+        glVertexAttribPointer(4, 3, GL_FLOAT, GL_FALSE, sizeof(chr::SceneRaw::Mesh::Vertex),
+            (void*)offsetof(chr::SceneRaw::Mesh::Vertex, bitangent));
+        glBindVertexArray(0);
+    }
+}
 
-            glEnableVertexAttribArray(0);
-            glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(chr::SceneRaw::Mesh::Vertex),
-                (void*)offsetof(chr::SceneRaw::Mesh::Vertex, position));
-            glEnableVertexAttribArray(1);
-            glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, sizeof(chr::SceneRaw::Mesh::Vertex),
-                (void*)offsetof(chr::SceneRaw::Mesh::Vertex, tex_coord));
-            glEnableVertexAttribArray(2);
-            glVertexAttribPointer(2, 3, GL_FLOAT, GL_FALSE, sizeof(chr::SceneRaw::Mesh::Vertex),
-                (void*)offsetof(chr::SceneRaw::Mesh::Vertex, normal));
-            glEnableVertexAttribArray(3);
-            glVertexAttribPointer(3, 3, GL_FLOAT, GL_FALSE, sizeof(chr::SceneRaw::Mesh::Vertex),
-                (void*)offsetof(chr::SceneRaw::Mesh::Vertex, tangent));
-            glEnableVertexAttribArray(4);
-            glVertexAttribPointer(4, 3, GL_FLOAT, GL_FALSE, sizeof(chr::SceneRaw::Mesh::Vertex),
-                (void*)offsetof(chr::SceneRaw::Mesh::Vertex, bitangent));
-            glBindVertexArray(0);
+namespace chr {
 
-            gpu_progress += mesh_progress_step;
-            report_progress(progress_callback, gpu_progress, "Uploading mesh buffers...");
+    void begin_scene_gpu_resources_init(
+        SceneGPUResources* resources,
+        const SceneRaw& scene_raw,
+        SceneGPUInitState* state) {
+        clear_scene_gpu_resources(resources);
+        *state = {};
+        state->scene_raw = &scene_raw;
+    }
+
+    bool step_scene_gpu_resources_init(SceneGPUResources* resources, SceneGPUInitState* state) {
+        if (state == nullptr || state->scene_raw == nullptr) {
+            return false;
         }
 
-        gpu_progress = GPU_PROGRESS_SHADER_WEIGHT + GPU_PROGRESS_MESH_WEIGHT;
-        report_progress(progress_callback, gpu_progress, "Uploading material textures...");
-        const float material_progress_step = scene_raw.materials.empty()
-            ? 0.0f
-            : GPU_PROGRESS_MATERIAL_WEIGHT / static_cast<float>(scene_raw.materials.size());
-        for (const auto& material_raw : scene_raw.materials) {
-            const uint32_t texture_diffuse =
-                graphics_util::load_texture_2d(material_raw.texture_diffuse);
-            const uint32_t texture_normal =
-                graphics_util::load_texture_2d(material_raw.texture_normal);
-            const uint32_t texture_alpha_mask =
-                graphics_util::load_texture_2d(material_raw.texture_alpha_mask);
-            resources->materials.push_back({
-                texture_diffuse != 0 ? texture_diffuse : resources->fallback_texture_diffuse,
-                texture_normal != 0 ? texture_normal : resources->fallback_texture_normal,
-                texture_alpha_mask != 0 ? texture_alpha_mask : resources->fallback_texture_diffuse
-            });
+        const SceneRaw& scene_raw = *state->scene_raw;
 
-            gpu_progress += material_progress_step;
-            report_progress(progress_callback, gpu_progress, "Uploading material textures...");
+        if (state->phase == SceneGPUInitPhase::Shaders) {
+            state->message = "Compiling scene shaders...";
+            if (!init_scene_gpu_shaders(resources)) {
+                clear_scene_gpu_resources(resources);
+                state->phase = SceneGPUInitPhase::Failed;
+                state->message = "Failed to create scene shaders.";
+                return false;
+            }
+
+            state->phase = scene_raw.meshes.empty()
+                ? SceneGPUInitPhase::Materials
+                : SceneGPUInitPhase::Meshes;
+            state->progress = GPU_PROGRESS_SHADER_WEIGHT;
+            state->message = "Uploading mesh buffers...";
+            return true;
         }
 
-        report_progress(progress_callback, 1.0f, "Scene ready.");
+        if (state->phase == SceneGPUInitPhase::Meshes) {
+            if (state->mesh_index < scene_raw.meshes.size()) {
+                upload_scene_mesh(resources, scene_raw.meshes[state->mesh_index]);
+                ++state->mesh_index;
+                state->progress = calculate_mesh_progress(*state);
+                state->message = "Uploading mesh buffers...";
+                return true;
+            }
+
+            state->phase = SceneGPUInitPhase::Materials;
+            state->progress = GPU_PROGRESS_SHADER_WEIGHT + GPU_PROGRESS_MESH_WEIGHT;
+            state->message = "Uploading material textures...";
+            return true;
+        }
+
+        if (state->phase == SceneGPUInitPhase::Materials) {
+            if (state->material_index >= scene_raw.materials.size()) {
+                state->phase = SceneGPUInitPhase::Complete;
+                state->progress = 1.0f;
+                state->message = "Scene ready.";
+                return true;
+            }
+
+            const SceneRaw::Material& material_raw = scene_raw.materials[state->material_index];
+            if (state->material_texture_step == 0) {
+                state->pending_texture_diffuse =
+                    graphics_util::load_texture_2d(material_raw.texture_diffuse);
+                state->material_texture_step = 1;
+            }
+            else if (state->material_texture_step == 1) {
+                state->pending_texture_normal =
+                    graphics_util::load_texture_2d(material_raw.texture_normal);
+                state->material_texture_step = 2;
+            }
+            else if (state->material_texture_step == 2) {
+                state->pending_texture_alpha_mask =
+                    graphics_util::load_texture_2d(material_raw.texture_alpha_mask);
+                state->material_texture_step = 3;
+            }
+            else {
+                resources->materials.push_back({
+                    state->pending_texture_diffuse != 0
+                        ? state->pending_texture_diffuse
+                        : resources->fallback_texture_diffuse,
+                    state->pending_texture_normal != 0
+                        ? state->pending_texture_normal
+                        : resources->fallback_texture_normal,
+                    state->pending_texture_alpha_mask != 0
+                        ? state->pending_texture_alpha_mask
+                        : resources->fallback_texture_diffuse
+                });
+                state->pending_texture_diffuse = 0;
+                state->pending_texture_normal = 0;
+                state->pending_texture_alpha_mask = 0;
+                state->material_texture_step = 0;
+                ++state->material_index;
+            }
+
+            state->progress = calculate_material_progress(*state);
+            state->message = "Uploading material textures...";
+            return true;
+        }
+
+        return state->phase == SceneGPUInitPhase::Complete;
+    }
+
+    int init_scene_gpu_resources(
+        SceneGPUResources* resources,
+        const SceneRaw& scene_raw,
+        const SceneGPUProgressCallback& progress_callback) {
+        SceneGPUInitState state;
+        begin_scene_gpu_resources_init(resources, scene_raw, &state);
+
+        while (state.phase != SceneGPUInitPhase::Complete) {
+            if (!step_scene_gpu_resources_init(resources, &state)) {
+                return -1;
+            }
+            report_progress(progress_callback, state.progress, state.message);
+        }
+
         return 0;
     }
 

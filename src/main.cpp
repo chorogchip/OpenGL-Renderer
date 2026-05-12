@@ -224,18 +224,24 @@ int main(int argc, char** argv) {
         &framebuffer_height);
 
     chr::SceneGPUResources scene_gpu_resources;
-    const auto gpu_progress_callback =
-        [&](const float gpu_progress, const char* message) {
-            const float total_progress = SCENE_FILE_PROGRESS_WEIGHT +
-                FRAMEBUFFER_PROGRESS_WEIGHT +
-                GPU_RESOURCE_PROGRESS_WEIGHT * gpu_progress;
-            render_loading_frame(
-                window,
-                make_progress_loading_state("Uploading Scene", message, total_progress),
-                &framebuffer_width,
-                &framebuffer_height);
-        };
-    if (chr::init_scene_gpu_resources(&scene_gpu_resources, scene_raw, gpu_progress_callback) != 0) {
+    chr::SceneGPUInitState scene_gpu_init_state;
+    chr::begin_scene_gpu_resources_init(&scene_gpu_resources, scene_raw, &scene_gpu_init_state);
+    while (!glfwWindowShouldClose(window) &&
+        scene_gpu_init_state.phase != chr::SceneGPUInitPhase::Complete) {
+        if (!chr::step_scene_gpu_resources_init(&scene_gpu_resources, &scene_gpu_init_state)) {
+            break;
+        }
+
+        const float total_progress = SCENE_FILE_PROGRESS_WEIGHT +
+            FRAMEBUFFER_PROGRESS_WEIGHT +
+            GPU_RESOURCE_PROGRESS_WEIGHT * scene_gpu_init_state.progress;
+        render_loading_frame(
+            window,
+            make_progress_loading_state("Uploading Scene", scene_gpu_init_state.message, total_progress),
+            &framebuffer_width,
+            &framebuffer_height);
+    }
+    if (scene_gpu_init_state.phase != chr::SceneGPUInitPhase::Complete) {
         chr::clear_scene_gpu_resources(&scene_gpu_resources);
         g_buffer_resources.clear();
         imgui_layer::shutdown();
