@@ -6,18 +6,55 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 include(FetchContent)
 
+set(SPONZA_SCENE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/assets/main_sponza")
+set(SPONZA_SCENE_FILE "${SPONZA_SCENE_DIR}/NewSponza_Main_glTF_003.gltf")
+set(SPONZA_SCENE_URL "https://cdrdv2.intel.com/v1/dl/getContent/830833")
+set(SPONZA_SCENE_ARCHIVE "${CMAKE_CURRENT_BINARY_DIR}/downloads/intel_sponza_base_scene.zip")
+option(OPENGL_RENDERER_DOWNLOAD_SPONZA "Download Intel Sponza Base Scene when assets/main_sponza is missing" ON)
+
+if(NOT EXISTS "${SPONZA_SCENE_FILE}")
+    if(NOT OPENGL_RENDERER_DOWNLOAD_SPONZA)
+        message(FATAL_ERROR
+            "Missing ${SPONZA_SCENE_FILE}. Reconfigure with "
+            "-DOPENGL_RENDERER_DOWNLOAD_SPONZA=ON to download the Intel Sponza scene.")
+    endif()
+
+    message(STATUS "Intel Sponza scene not found; downloading from ${SPONZA_SCENE_URL}")
+    file(MAKE_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/downloads")
+    file(MAKE_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/assets")
+    file(
+        DOWNLOAD "${SPONZA_SCENE_URL}" "${SPONZA_SCENE_ARCHIVE}"
+        SHOW_PROGRESS
+        STATUS SPONZA_DOWNLOAD_STATUS
+        TLS_VERIFY ON
+    )
+    list(GET SPONZA_DOWNLOAD_STATUS 0 SPONZA_DOWNLOAD_RESULT)
+    list(GET SPONZA_DOWNLOAD_STATUS 1 SPONZA_DOWNLOAD_MESSAGE)
+    if(NOT SPONZA_DOWNLOAD_RESULT EQUAL 0)
+        message(FATAL_ERROR "Failed to download Intel Sponza scene: ${SPONZA_DOWNLOAD_MESSAGE}")
+    endif()
+
+    message(STATUS "Extracting Intel Sponza scene to ${CMAKE_CURRENT_SOURCE_DIR}/assets")
+    execute_process(
+        COMMAND "${CMAKE_COMMAND}" -E tar xzf "${SPONZA_SCENE_ARCHIVE}"
+        WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/assets"
+        RESULT_VARIABLE SPONZA_EXTRACT_RESULT
+    )
+    if(NOT SPONZA_EXTRACT_RESULT EQUAL 0)
+        message(FATAL_ERROR "Failed to extract Intel Sponza scene archive: ${SPONZA_SCENE_ARCHIVE}")
+    endif()
+
+    if(NOT EXISTS "${SPONZA_SCENE_FILE}")
+        message(FATAL_ERROR
+            "Downloaded Intel Sponza archive did not produce ${SPONZA_SCENE_FILE}. "
+            "Check the archive layout from ${SPONZA_SCENE_URL}.")
+    endif()
+endif()
+
 set(GLFW_BUILD_DOCS OFF CACHE BOOL "" FORCE)
 set(GLFW_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
 set(GLFW_BUILD_TESTS OFF CACHE BOOL "" FORCE)
 set(GLFW_INSTALL OFF CACHE BOOL "" FORCE)
-
-set(ASSIMP_BUILD_ASSIMP_TOOLS OFF CACHE BOOL "" FORCE)
-set(ASSIMP_BUILD_TESTS OFF CACHE BOOL "" FORCE)
-set(ASSIMP_INSTALL OFF CACHE BOOL "" FORCE)
-set(ASSIMP_BUILD_ZLIB ON CACHE BOOL "" FORCE)
-set(ASSIMP_BUILD_ALL_IMPORTERS_BY_DEFAULT OFF CACHE BOOL "" FORCE)
-set(ASSIMP_BUILD_OBJ_IMPORTER ON CACHE BOOL "" FORCE)
-set(ASSIMP_BUILD_GLTF_IMPORTER ON CACHE BOOL "" FORCE)
 
 set(GLM_BUILD_TESTS OFF CACHE BOOL "" FORCE)
 
@@ -34,19 +71,6 @@ else()
     FetchContent_MakeAvailable(glfw)
 endif()
 
-if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/external/assimp/CMakeLists.txt")
-    add_subdirectory(external/assimp)
-else()
-    FetchContent_Declare(
-        assimp
-        GIT_REPOSITORY https://github.com/assimp/assimp.git
-        GIT_TAG v6.0.4
-        GIT_SHALLOW TRUE
-        GIT_PROGRESS TRUE
-    )
-    FetchContent_MakeAvailable(assimp)
-endif()
-
 if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/external/glm/CMakeLists.txt")
     add_subdirectory(external/glm)
 else()
@@ -58,6 +82,19 @@ else()
         GIT_PROGRESS TRUE
     )
     FetchContent_MakeAvailable(glm)
+endif()
+
+if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/external/fastgltf/CMakeLists.txt")
+    add_subdirectory(external/fastgltf)
+else()
+    FetchContent_Declare(
+        fastgltf
+        GIT_REPOSITORY https://github.com/spnda/fastgltf.git
+        GIT_TAG v0.9.0
+        GIT_SHALLOW TRUE
+        GIT_PROGRESS TRUE
+    )
+    FetchContent_MakeAvailable(fastgltf)
 endif()
 
 if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/external/glad/include/glad/glad.h" AND
@@ -151,7 +188,7 @@ target_link_libraries(${PROJECT_NAME} PRIVATE
     glad::glad
     glm::glm
     imgui
-    assimp
+    fastgltf::fastgltf
 )
 
 add_custom_command(

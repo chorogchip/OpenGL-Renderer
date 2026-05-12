@@ -1,13 +1,16 @@
 #include "model_loader.h"
 
+#include <cstdint>
 #include <filesystem>
-#include <initializer_list>
 #include <iostream>
+#include <limits>
+#include <string_view>
 #include <utility>
 
-#include <assimp/Importer.hpp>
-#include <assimp/postprocess.h>
-#include <assimp/scene.h>
+#include <fastgltf/core.hpp>
+#include <fastgltf/glm_element_traits.hpp>
+#include <fastgltf/tools.hpp>
+#include <fastgltf/types.hpp>
 #include <glm/gtc/matrix_inverse.hpp>
 #include <glm/gtc/type_ptr.hpp>
 
@@ -16,8 +19,16 @@ namespace chr {
 
     namespace {
 
-        glm::mat4 to_glm(const aiMatrix4x4& matrix) {
-            return glm::transpose(glm::make_mat4(&matrix.a1));
+        constexpr uint32_t INVALID_MATERIAL_INDEX = std::numeric_limits<uint32_t>::max();
+
+        bool is_gltf_path(const std::filesystem::path& path) {
+            const std::string extension = path.extension().string();
+            return extension == ".gltf" || extension == ".glb" ||
+                extension == ".GLTF" || extension == ".GLB";
+        }
+
+        glm::mat4 to_glm(const fastgltf::math::fmat4x4& matrix) {
+            return glm::make_mat4(matrix.data());
         }
 
         glm::vec3 safe_normalize(const glm::vec3& value) {
@@ -29,23 +40,27 @@ namespace chr {
             return value / length;
         }
 
-        std::string get_texture_path(
-            const aiScene* scene,
-            aiMaterial* material,
-            aiTextureType type,
-            const std::filesystem::path& model_dir)
-        {
-            if (material == nullptr || material->GetTextureCount(type) == 0) {
+        template <typename OptionalTextureInfoType>
+        std::string get_texture_image_path(
+            const fastgltf::Asset& asset,
+            const std::filesystem::path& model_dir,
+            const OptionalTextureInfoType& texture_info) {
+            if (!texture_info.has_value() || texture_info->textureIndex >= asset.textures.size()) {
                 return {};
             }
 
-            aiString path;
-            if (material->GetTexture(type, 0, &path) != aiReturn_SUCCESS) {
+            const fastgltf::Texture& texture = asset.textures[texture_info->textureIndex];
+            if (!texture.imageIndex.has_value() || *texture.imageIndex >= asset.images.size()) {
                 return {};
             }
 
-            std::filesystem::path texture_path = path.C_Str();
+            const fastgltf::Image& image = asset.images[*texture.imageIndex];
+            const auto* uri_source = std::get_if<fastgltf::sources::URI>(&image.data);
+            if (uri_source == nullptr || !uri_source->uri.isLocalPath()) {
+                return {};
+            }
 
+            std::filesystem::path texture_path = uri_source->uri.fspath();
             if (texture_path.is_absolute()) {
                 return texture_path.string();
             }
@@ -53,169 +68,167 @@ namespace chr {
             return (model_dir / texture_path).lexically_normal().string();
         }
 
-        std::string get_first_texture_path(
-            const aiScene* scene,
-            aiMaterial* material,
-            const std::initializer_list<aiTextureType> types,
-            const std::filesystem::path& model_dir)
-        {
-            for (const aiTextureType type : types) {
-                std::string texture_path = get_texture_path(scene, material, type, model_dir);
-                if (!texture_path.empty()) {
-                    return texture_path;
-                }
+        void append_gltf_primitive(
+            const fastgltf::Asset& asset,
+            const fastgltf::Primitive& primitive,
+            const glm::mat4& transform,
+            SceneRaw* result) {
+            if (primitive.type != fastgltf::PrimitiveType::Triangles) {
+                return;
             }
 
-            return {};
-        }
+            const auto position_it = primitive.findAttribute("POSITION");
+            if (position_it == primitive.attributes.end() ||
+                position_it->accessorIndex >= asset.accessors.size()) {
+                return;
+            }
 
-        void append_mesh(
-            const aiMesh* mesh,
-            const glm::mat4& transform,
-            SceneRaw* result)
-        {
-            SceneRaw::Mesh out_mesh{};
-            out_mesh.material_index = mesh->mMaterialIndex;
-
+            const fastgltf::Accessor& position_accessor = asset.accessors[position_it->accessorIndex];
             const glm::mat3 normal_matrix = glm::inverseTranspose(glm::mat3(transform));
 
-            out_mesh.vertices.reserve(mesh->mNumVertices);
-            for (unsigned int j = 0; j < mesh->mNumVertices; ++j) {
-                SceneRaw::Mesh::Vertex vertex{};
+            SceneRaw::Mesh out_mesh{};
+            out_mesh.material_index = primitive.materialIndex.has_value()
+                ? static_cast<uint32_t>(*primitive.materialIndex)
+                : INVALID_MATERIAL_INDEX;
+            out_mesh.vertices.resize(position_accessor.count);
 
-                const glm::vec4 position = transform * glm::vec4(
-                    mesh->mVertices[j].x,
-                    mesh->mVertices[j].y,
-                    mesh->mVertices[j].z,
-                    1.0f);
-                vertex.position = glm::vec3(position);
+            fastgltf::iterateAccessorWithIndex<glm::vec3>(
+                asset, position_accessor,
+                [&](const glm::vec3 position, const std::size_t index) {
+                    out_mesh.vertices[index].position = glm::vec3(transform * glm::vec4(position, 1.0f));
+                });
 
-                if (mesh->HasTextureCoords(0)) {
-                    vertex.tex_coord = {
-                        mesh->mTextureCoords[0][j].x,
-                        mesh->mTextureCoords[0][j].y
-                    };
-                }
-                else {
-                    vertex.tex_coord = { 0.0f, 0.0f };
-                }
-
-                if (mesh->HasNormals()) {
-                    vertex.normal = safe_normalize(normal_matrix * glm::vec3(
-                        mesh->mNormals[j].x,
-                        mesh->mNormals[j].y,
-                        mesh->mNormals[j].z));
-                }
-                else {
-                    vertex.normal = { 0.0f, 0.0f, 0.0f };
-                }
-
-                if (mesh->HasTangentsAndBitangents()) {
-                    vertex.tangent = safe_normalize(normal_matrix * glm::vec3(
-                        mesh->mTangents[j].x,
-                        mesh->mTangents[j].y,
-                        mesh->mTangents[j].z));
-                    vertex.bitangent = safe_normalize(normal_matrix * glm::vec3(
-                        mesh->mBitangents[j].x,
-                        mesh->mBitangents[j].y,
-                        mesh->mBitangents[j].z));
-                }
-                else {
-                    vertex.tangent = { 0.0f, 0.0f, 0.0f };
-                    vertex.bitangent = { 0.0f, 0.0f, 0.0f };
-                }
-
-                out_mesh.vertices.push_back(vertex);
+            const auto texcoord_it = primitive.findAttribute("TEXCOORD_0");
+            if (texcoord_it != primitive.attributes.end() &&
+                texcoord_it->accessorIndex < asset.accessors.size()) {
+                const fastgltf::Accessor& texcoord_accessor = asset.accessors[texcoord_it->accessorIndex];
+                fastgltf::iterateAccessorWithIndex<glm::vec2>(
+                    asset, texcoord_accessor,
+                    [&](const glm::vec2 tex_coord, const std::size_t index) {
+                        out_mesh.vertices[index].tex_coord = tex_coord;
+                    });
             }
 
-            out_mesh.indices.reserve(mesh->mNumFaces * 3);
-            for (unsigned int j = 0; j < mesh->mNumFaces; ++j) {
-                const aiFace& face = mesh->mFaces[j];
+            const auto normal_it = primitive.findAttribute("NORMAL");
+            if (normal_it != primitive.attributes.end() &&
+                normal_it->accessorIndex < asset.accessors.size()) {
+                const fastgltf::Accessor& normal_accessor = asset.accessors[normal_it->accessorIndex];
+                fastgltf::iterateAccessorWithIndex<glm::vec3>(
+                    asset, normal_accessor,
+                    [&](const glm::vec3 normal, const std::size_t index) {
+                        out_mesh.vertices[index].normal = safe_normalize(normal_matrix * normal);
+                    });
+            }
 
-                for (unsigned int k = 0; k < face.mNumIndices; ++k) {
-                    out_mesh.indices.push_back(face.mIndices[k]);
+            const auto tangent_it = primitive.findAttribute("TANGENT");
+            if (tangent_it != primitive.attributes.end() &&
+                tangent_it->accessorIndex < asset.accessors.size()) {
+                const fastgltf::Accessor& tangent_accessor = asset.accessors[tangent_it->accessorIndex];
+                fastgltf::iterateAccessorWithIndex<glm::vec4>(
+                    asset, tangent_accessor,
+                    [&](const glm::vec4 tangent, const std::size_t index) {
+                        SceneRaw::Mesh::Vertex& vertex = out_mesh.vertices[index];
+                        vertex.tangent = safe_normalize(normal_matrix * glm::vec3(tangent));
+                        vertex.bitangent = safe_normalize(glm::cross(vertex.normal, vertex.tangent) * tangent.w);
+                    });
+            }
+
+            if (primitive.indicesAccessor.has_value() &&
+                *primitive.indicesAccessor < asset.accessors.size()) {
+                const fastgltf::Accessor& indices_accessor = asset.accessors[*primitive.indicesAccessor];
+                out_mesh.indices.reserve(indices_accessor.count);
+                fastgltf::iterateAccessor<uint32_t>(
+                    asset, indices_accessor,
+                    [&](const uint32_t index) {
+                        out_mesh.indices.push_back(index);
+                    });
+            }
+            else {
+                out_mesh.indices.reserve(out_mesh.vertices.size());
+                for (uint32_t i = 0; i < out_mesh.vertices.size(); ++i) {
+                    out_mesh.indices.push_back(i);
                 }
             }
 
             result->meshes.push_back(std::move(out_mesh));
         }
 
-        void append_node_meshes(
-            const aiScene* scene,
-            const aiNode* node,
-            const glm::mat4& parent_transform,
-            SceneRaw* result)
-        {
-            const glm::mat4 node_transform = parent_transform * to_glm(node->mTransformation);
-
-            for (unsigned int i = 0; i < node->mNumMeshes; ++i) {
-                const unsigned int mesh_index = node->mMeshes[i];
-                if (mesh_index < scene->mNumMeshes) {
-                    append_mesh(scene->mMeshes[mesh_index], node_transform, result);
-                }
-            }
-
-            for (unsigned int i = 0; i < node->mNumChildren; ++i) {
-                append_node_meshes(scene, node->mChildren[i], node_transform, result);
-            }
-        }
-
     }
 
     SceneRaw load_scene(const char* filename) {
         SceneRaw result;
-        Assimp::Importer importer;
 
-        const aiScene* scene = importer.ReadFile(
-            filename,
-            aiProcess_Triangulate |
-            aiProcess_FlipUVs |
-            aiProcess_GenNormals |
-            aiProcess_CalcTangentSpace |
-            aiProcess_JoinIdenticalVertices |
-            aiProcess_ImproveCacheLocality);
-
-        if (!scene || (scene->mFlags & AI_SCENE_FLAGS_INCOMPLETE) || !scene->mRootNode) {
-            std::cerr << "Assimp Error: " << importer.GetErrorString() << std::endl;
+        const std::filesystem::path model_path(filename);
+        if (!is_gltf_path(model_path)) {
+            std::cerr << "Unsupported scene format for fastgltf loader: " << filename << std::endl;
             return result;
         }
 
-        const std::filesystem::path model_path(filename);
         const std::filesystem::path model_dir = model_path.parent_path();
 
-        result.materials.reserve(scene->mNumMaterials);
-        for (unsigned int i = 0; i < scene->mNumMaterials; ++i) {
-            aiMaterial* material = scene->mMaterials[i];
+        auto gltf_data = fastgltf::GltfDataBuffer::FromPath(model_path);
+        if (gltf_data.error() != fastgltf::Error::None) {
+            std::cerr << "fastgltf file error: " << fastgltf::getErrorMessage(gltf_data.error()) << std::endl;
+            return result;
+        }
+
+        fastgltf::Parser parser;
+        auto asset_result = parser.loadGltf(
+            gltf_data.get(),
+            model_dir,
+            fastgltf::Options::LoadExternalBuffers | fastgltf::Options::GenerateMeshIndices,
+            fastgltf::Category::OnlyRenderable);
+        if (asset_result.error() != fastgltf::Error::None) {
+            std::cerr << "fastgltf parse error: " << fastgltf::getErrorMessage(asset_result.error()) << std::endl;
+            return result;
+        }
+
+        const fastgltf::Asset& asset = asset_result.get();
+
+        result.materials.reserve(asset.materials.size());
+        for (const fastgltf::Material& material : asset.materials) {
 
             SceneRaw::Material out_material{};
 
-            out_material.texture_diffuse = get_first_texture_path(
-                scene, material,
-                { aiTextureType_BASE_COLOR, aiTextureType_DIFFUSE },
-                model_dir);
+            out_material.texture_diffuse = get_texture_image_path(
+                asset, model_dir, material.pbrData.baseColorTexture);
+            out_material.texture_normal = get_texture_image_path(
+                asset, model_dir, material.normalTexture);
+            out_material.texture_roughness = get_texture_image_path(
+                asset, model_dir, material.pbrData.metallicRoughnessTexture);
+            out_material.texture_metallic = out_material.texture_roughness;
+            out_material.texture_occlusion = get_texture_image_path(
+                asset, model_dir, material.occlusionTexture);
+            out_material.texture_emissive = get_texture_image_path(
+                asset, model_dir, material.emissiveTexture);
 
-            out_material.texture_normal = get_first_texture_path(
-                scene, material,
-                { aiTextureType_NORMALS, aiTextureType_NORMAL_CAMERA, aiTextureType_HEIGHT },
-                model_dir);
-
-            out_material.texture_alpha_mask =
-                get_texture_path(scene, material, aiTextureType_OPACITY, model_dir);
-
-            out_material.texture_metallic =
-                get_texture_path(scene, material, aiTextureType_METALNESS, model_dir);
-            out_material.texture_roughness =
-                get_texture_path(scene, material, aiTextureType_DIFFUSE_ROUGHNESS, model_dir);
-            out_material.texture_occlusion =
-                get_texture_path(scene, material, aiTextureType_AMBIENT_OCCLUSION, model_dir);
-            out_material.texture_emissive =
-                get_texture_path(scene, material, aiTextureType_EMISSIVE, model_dir);
+            if (material.alphaMode == fastgltf::AlphaMode::Mask ||
+                material.alphaMode == fastgltf::AlphaMode::Blend) {
+                out_material.texture_alpha_mask = out_material.texture_diffuse;
+            }
 
             result.materials.push_back(std::move(out_material));
         }
 
-        result.meshes.reserve(scene->mNumMeshes);
-        append_node_meshes(scene, scene->mRootNode, glm::mat4(1.0f), &result);
+        result.meshes.reserve(asset.meshes.size());
+        const std::size_t scene_index = asset.defaultScene.value_or(0);
+        if (scene_index < asset.scenes.size()) {
+            fastgltf::iterateSceneNodes(
+                asset,
+                scene_index,
+                fastgltf::math::fmat4x4(),
+                [&](const fastgltf::Node& node, fastgltf::math::fmat4x4 matrix) {
+                    if (!node.meshIndex.has_value() || *node.meshIndex >= asset.meshes.size()) {
+                        return;
+                    }
+
+                    const glm::mat4 transform = to_glm(matrix);
+                    const fastgltf::Mesh& mesh = asset.meshes[*node.meshIndex];
+                    for (const fastgltf::Primitive& primitive : mesh.primitives) {
+                        append_gltf_primitive(asset, primitive, transform, &result);
+                    }
+                });
+        }
 
         std::cout << "Successfully loaded: " << filename << std::endl;
         std::cout << "Total Meshes: " << result.meshes.size() << std::endl;
@@ -232,10 +245,6 @@ namespace chr {
         std::cout << "Total Indices: " << total_indices << std::endl;
 
         return result;
-    }
-
-    SceneRaw load_obj(const char* filename) {
-        return load_scene(filename);
     }
 
 }

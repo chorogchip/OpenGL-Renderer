@@ -1,5 +1,6 @@
 #include <iostream>
 #include <immintrin.h>
+#include <limits>
 
 #include <glad/glad.h>
 #include <GLFW/glfw3.h>
@@ -16,11 +17,48 @@
 
 constexpr unsigned SCREEN_WIDTH = 800;
 constexpr unsigned SCREEN_HEIGHT = 600;
-constexpr const char* SPONZA_SCENE_RELATIVE_PATH = "assets/Sponza-master/sponza.obj";
+constexpr const char* SPONZA_SCENE_RELATIVE_PATH = "assets/main_sponza/NewSponza_Main_glTF_003.gltf";
 
 chr::Camera camera{};
 bool show_debug_views = false;
 bool show_light_markers = true;
+
+namespace {
+    struct SceneFrame {
+        glm::vec3 center = glm::vec3(0.0f);
+        float scale = 1.0f;
+        float radius = 1.0f;
+    };
+
+    SceneFrame calculate_scene_frame(const chr::SceneRaw& scene_raw) {
+        glm::vec3 min_bounds(std::numeric_limits<float>::max());
+        glm::vec3 max_bounds(std::numeric_limits<float>::lowest());
+        bool has_vertex = false;
+
+        for (const auto& mesh : scene_raw.meshes) {
+            for (const auto& vertex : mesh.vertices) {
+                min_bounds = glm::min(min_bounds, vertex.position);
+                max_bounds = glm::max(max_bounds, vertex.position);
+                has_vertex = true;
+            }
+        }
+
+        if (!has_vertex) {
+            return {};
+        }
+
+        const glm::vec3 center = (min_bounds + max_bounds) * 0.5f;
+        const glm::vec3 extent = max_bounds - min_bounds;
+        const float max_extent = glm::max(glm::max(extent.x, extent.y), extent.z);
+        const float scale = max_extent > 0.0001f ? 20.0f / max_extent : 1.0f;
+
+        SceneFrame frame{};
+        frame.center = center;
+        frame.scale = scale;
+        frame.radius = glm::length(extent) * 0.5f * scale;
+        return frame;
+    }
+}
 
 int main(int argc, char** argv) {
     glfwInit();
@@ -81,8 +119,11 @@ int main(int argc, char** argv) {
         return -1;
     }
 
-    camera.set_position(glm::vec3(0.0f, 20.0f, 50.0f));
-    camera.set_lookat(glm::vec3(0.0f, 5.0f, 0.0f));
+    const SceneFrame scene_frame = calculate_scene_frame(scene_raw);
+    const glm::vec3 scene_center = scene_frame.center * scene_frame.scale;
+    const float camera_distance = glm::max(scene_frame.radius * 1.8f, 25.0f);
+    camera.set_position(scene_center + glm::vec3(0.0f, camera_distance * 0.35f, camera_distance));
+    camera.set_lookat(scene_center);
 
     float last_time = static_cast<float>(glfwGetTime());
     uint64_t frames = 0;
@@ -129,7 +170,7 @@ int main(int argc, char** argv) {
         draw_params.mat_projection = camera.get_projection_matrix(
             static_cast<float>(framebuffer_width) / framebuffer_height);
         draw_params.mat_view = camera.get_view_matrix();
-        draw_params.mat_model = glm::scale(glm::mat4(1.0f), glm::vec3(0.01f));
+        draw_params.mat_model = glm::scale(glm::mat4(1.0f), glm::vec3(scene_frame.scale));
 
         g_buffer_resources.bind_for_shadow_pass();
         glClear(GL_DEPTH_BUFFER_BIT);

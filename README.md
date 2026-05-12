@@ -27,10 +27,14 @@ Sponza scene을 대상으로 G-buffer, deferred lighting, shadow mapping, SSAO, 
 
 ## 빌드
 
+첫 CMake configure 시 `assets/main_sponza/NewSponza_Main_glTF_003.gltf`가 없으면 Intel GPU Research Samples의 Sponza Base Scene을 인터넷에서 자동으로 다운로드해 `assets/main_sponza`에 압축 해제합니다. 다운로드 크기는 약 3.71 GB입니다.
+
 ```powershell
 cmake --preset windows-debug
 cmake --build --preset windows-debug
 ```
+
+이미 리소스를 직접 준비했거나 자동 다운로드를 막고 싶다면 configure 때 `-DOPENGL_RENDERER_DOWNLOAD_SPONZA=OFF`를 지정할 수 있습니다. 이 경우 `assets/main_sponza`가 없으면 configure가 실패합니다.
 
 ## 조작
 
