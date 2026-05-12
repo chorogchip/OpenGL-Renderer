@@ -177,6 +177,10 @@ target_link_libraries(imgui PUBLIC glfw glad::glad OpenGL::GL)
 
 add_executable(${PROJECT_NAME} ${SOURCES})
 
+target_compile_definitions(${PROJECT_NAME} PRIVATE
+    OPENGL_RENDERER_DEFAULT_SPONZA_SCENE="${SPONZA_SCENE_FILE}"
+)
+
 target_include_directories(${PROJECT_NAME} PRIVATE include)
 target_include_directories(${PROJECT_NAME} SYSTEM PRIVATE
     ${STB_INCLUDE_DIR}
@@ -193,7 +197,12 @@ target_link_libraries(${PROJECT_NAME} PRIVATE
 
 add_custom_command(
     TARGET ${PROJECT_NAME} POST_BUILD
-    COMMAND ${CMAKE_COMMAND} -E copy_directory
-        "${CMAKE_CURRENT_SOURCE_DIR}/assets"
+    COMMAND ${CMAKE_COMMAND} -E make_directory
         "$<TARGET_FILE_DIR:${PROJECT_NAME}>/assets"
+    COMMAND ${CMAKE_COMMAND} -E copy_directory_if_different
+        "${CMAKE_CURRENT_SOURCE_DIR}/assets/shaders"
+        "$<TARGET_FILE_DIR:${PROJECT_NAME}>/assets/shaders"
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+        "${CMAKE_CURRENT_SOURCE_DIR}/assets/texture.png"
+        "$<TARGET_FILE_DIR:${PROJECT_NAME}>/assets/texture.png"
 )

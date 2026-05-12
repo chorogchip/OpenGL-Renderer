@@ -17,7 +17,10 @@
 
 constexpr unsigned SCREEN_WIDTH = 800;
 constexpr unsigned SCREEN_HEIGHT = 600;
-constexpr const char* SPONZA_SCENE_RELATIVE_PATH = "assets/main_sponza/NewSponza_Main_glTF_003.gltf";
+#ifndef OPENGL_RENDERER_DEFAULT_SPONZA_SCENE
+#define OPENGL_RENDERER_DEFAULT_SPONZA_SCENE "assets/main_sponza/NewSponza_Main_glTF_003.gltf"
+#endif
+constexpr const char* SPONZA_SCENE_RELATIVE_PATH = OPENGL_RENDERER_DEFAULT_SPONZA_SCENE;
 
 chr::Camera camera{};
 bool show_debug_views = false;

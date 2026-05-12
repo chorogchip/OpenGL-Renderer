@@ -9,6 +9,9 @@
 /external/stb_image.cpp
 /external/stb_image.h
 
+# Large downloaded scene assets
+/assets/main_sponza/
+
 # CMake and generated build outputs
 /out/
 /build/
@@ -33,5 +36,6 @@ Testing/
 # IDE and OS noise
 *.VC.db
 *.VC.opendb
+imgui.ini
 Thumbs.db
 .DS_Store
