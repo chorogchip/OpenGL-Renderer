@@ -1,6 +1,5 @@
 #pragma once
 
-#include <cstdint>
 #include <vector>
 #include <string>
 
@@ -9,12 +8,6 @@
 namespace chr {
 
     struct SceneRaw {
-        enum class AlphaMode {
-            Opaque,
-            Mask,
-            Blend
-        };
-
         struct Mesh {
             struct Vertex {
                 glm::vec3 position;
@@ -35,13 +28,6 @@ namespace chr {
             std::string texture_roughness;
             std::string texture_occlusion;
             std::string texture_emissive;
-            glm::vec4 base_color_factor = glm::vec4(1.0f);
-            glm::vec3 emissive_factor = glm::vec3(0.0f);
-            float metallic_factor = 1.0f;
-            float roughness_factor = 1.0f;
-            float alpha_cutoff = 0.5f;
-            AlphaMode alpha_mode = AlphaMode::Opaque;
-            bool double_sided = false;
         };
         std::vector<Mesh> meshes;
         std::vector<Material> materials;
