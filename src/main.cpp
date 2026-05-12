@@ -1,5 +1,6 @@
 #include <iostream>
 #include <immintrin.h>
+#include <algorithm>
 #include <limits>
 
 #include <glad/glad.h>
@@ -28,6 +29,11 @@ bool show_debug_views = false;
 bool show_light_markers = true;
 
 namespace {
+    constexpr float SCENE_FILE_PROGRESS_WEIGHT = 0.55f;
+    constexpr float FRAMEBUFFER_PROGRESS_WEIGHT = 0.07f;
+    constexpr float GPU_RESOURCE_PROGRESS_WEIGHT = 0.38f;
+    constexpr double EXPECTED_SCENE_FILE_LOAD_SECONDS = 8.0;
+
     struct SceneFrame {
         glm::vec3 center = glm::vec3(0.0f);
         float scale = 1.0f;
@@ -61,6 +67,41 @@ namespace {
         frame.scale = scale;
         frame.radius = glm::length(extent) * 0.5f * scale;
         return frame;
+    }
+
+    chr::LoadingScreenState make_progress_loading_state(
+        const std::string& title,
+        const std::string& message,
+        const float progress) {
+        chr::LoadingScreenState state{};
+        state.status = chr::SceneLoadStatus::Loading;
+        state.title = title;
+        state.message = message;
+        state.progress = std::clamp(progress, 0.0f, 1.0f);
+        return state;
+    }
+
+    void render_loading_frame(
+        GLFWwindow* window,
+        const chr::LoadingScreenState& state,
+        int* framebuffer_width,
+        int* framebuffer_height) {
+        int current_framebuffer_width = 0;
+        int current_framebuffer_height = 0;
+        glfwGetFramebufferSize(window, &current_framebuffer_width, &current_framebuffer_height);
+        if (current_framebuffer_width <= 0 || current_framebuffer_height <= 0) {
+            glfwPollEvents();
+            return;
+        }
+
+        *framebuffer_width = current_framebuffer_width;
+        *framebuffer_height = current_framebuffer_height;
+
+        imgui_layer::begin_frame();
+        chr::draw_loading_screen(state, *framebuffer_width, *framebuffer_height);
+        imgui_layer::end_frame();
+        glfwSwapBuffers(window);
+        glfwPollEvents();
     }
 }
 
@@ -107,26 +148,23 @@ int main(int argc, char** argv) {
 
     bool load_failed = false;
     double load_failed_time = 0.0;
+    const double scene_load_start_time = glfwGetTime();
     chr::SceneLoadSnapshot load_snapshot = scene_loader.snapshot();
     while (!glfwWindowShouldClose(window)) {
         scene_loader.poll();
         load_snapshot = scene_loader.snapshot();
 
-        int current_framebuffer_width = 0;
-        int current_framebuffer_height = 0;
-        glfwGetFramebufferSize(window, &current_framebuffer_width, &current_framebuffer_height);
-        if (current_framebuffer_width > 0 && current_framebuffer_height > 0) {
-            framebuffer_width = current_framebuffer_width;
-            framebuffer_height = current_framebuffer_height;
-
-            imgui_layer::begin_frame();
-            chr::draw_loading_screen(
-                chr::make_loading_screen_state(load_snapshot),
-                framebuffer_width,
-                framebuffer_height);
-            imgui_layer::end_frame();
-            glfwSwapBuffers(window);
+        chr::LoadingScreenState loading_state = chr::make_loading_screen_state(load_snapshot);
+        if (load_snapshot.status == chr::SceneLoadStatus::Loading) {
+            const double elapsed = glfwGetTime() - scene_load_start_time;
+            const float scene_file_progress = static_cast<float>(
+                std::min(elapsed / EXPECTED_SCENE_FILE_LOAD_SECONDS, 0.97));
+            loading_state.progress = scene_file_progress * SCENE_FILE_PROGRESS_WEIGHT;
         }
+        else if (load_snapshot.status == chr::SceneLoadStatus::Ready) {
+            loading_state.progress = SCENE_FILE_PROGRESS_WEIGHT;
+        }
+        render_loading_frame(window, loading_state, &framebuffer_width, &framebuffer_height);
 
         if (load_snapshot.status == chr::SceneLoadStatus::Ready) {
             break;
@@ -163,6 +201,12 @@ int main(int argc, char** argv) {
         return -1;
     }
 
+    render_loading_frame(
+        window,
+        make_progress_loading_state("Preparing Renderer", "Creating frame buffers...", SCENE_FILE_PROGRESS_WEIGHT),
+        &framebuffer_width,
+        &framebuffer_height);
+
     chr::GBufferResources g_buffer_resources;
     if (g_buffer_resources.init(framebuffer_width, framebuffer_height) != 0) {
         g_buffer_resources.clear();
@@ -170,9 +214,28 @@ int main(int argc, char** argv) {
         glfwTerminate();
         return -1;
     }
+    render_loading_frame(
+        window,
+        make_progress_loading_state(
+            "Preparing Renderer",
+            "Frame buffers ready.",
+            SCENE_FILE_PROGRESS_WEIGHT + FRAMEBUFFER_PROGRESS_WEIGHT),
+        &framebuffer_width,
+        &framebuffer_height);
 
     chr::SceneGPUResources scene_gpu_resources;
-    if (chr::init_scene_gpu_resources(&scene_gpu_resources, scene_raw) != 0) {
+    const auto gpu_progress_callback =
+        [&](const float gpu_progress, const char* message) {
+            const float total_progress = SCENE_FILE_PROGRESS_WEIGHT +
+                FRAMEBUFFER_PROGRESS_WEIGHT +
+                GPU_RESOURCE_PROGRESS_WEIGHT * gpu_progress;
+            render_loading_frame(
+                window,
+                make_progress_loading_state("Uploading Scene", message, total_progress),
+                &framebuffer_width,
+                &framebuffer_height);
+        };
+    if (chr::init_scene_gpu_resources(&scene_gpu_resources, scene_raw, gpu_progress_callback) != 0) {
         chr::clear_scene_gpu_resources(&scene_gpu_resources);
         g_buffer_resources.clear();
         imgui_layer::shutdown();

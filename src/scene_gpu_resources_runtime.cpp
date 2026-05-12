@@ -12,6 +12,9 @@ namespace {
     constexpr const char* FRAGMENT_SHADER_PATH = "assets/shaders/scene.frag";
     constexpr const char* SHADOW_VERTEX_SHADER_PATH = "assets/shaders/shadow_scene.vert";
     constexpr const char* SHADOW_FRAGMENT_SHADER_PATH = "assets/shaders/shadow_scene.frag";
+    constexpr float GPU_PROGRESS_SHADER_WEIGHT = 0.10f;
+    constexpr float GPU_PROGRESS_MESH_WEIGHT = 0.30f;
+    constexpr float GPU_PROGRESS_MATERIAL_WEIGHT = 0.60f;
 
     uint32_t create_fallback_texture(const unsigned char rgba[4]) {
         uint32_t texture = 0;
@@ -26,12 +29,25 @@ namespace {
             1, 1, 0, GL_RGBA, GL_UNSIGNED_BYTE, rgba);
         return texture;
     }
+
+    void report_progress(
+        const chr::SceneGPUProgressCallback& progress_callback,
+        const float progress,
+        const char* message) {
+        if (progress_callback) {
+            progress_callback(progress, message);
+        }
+    }
 }
 
 namespace chr {
 
-    int init_scene_gpu_resources(SceneGPUResources* resources, const SceneRaw& scene_raw) {
+    int init_scene_gpu_resources(
+        SceneGPUResources* resources,
+        const SceneRaw& scene_raw,
+        const SceneGPUProgressCallback& progress_callback) {
         clear_scene_gpu_resources(resources);
+        report_progress(progress_callback, 0.0f, "Compiling scene shaders...");
 
         unsigned shader_program = graphics_util::create_shader_program_from_files(
             VERTEX_SHADER_PATH, FRAGMENT_SHADER_PATH);
@@ -62,7 +78,12 @@ namespace chr {
         constexpr unsigned char flat_normal_pixel[] = { 128, 128, 255, 255 };
         resources->fallback_texture_diffuse = create_fallback_texture(white_pixel);
         resources->fallback_texture_normal = create_fallback_texture(flat_normal_pixel);
+        report_progress(progress_callback, GPU_PROGRESS_SHADER_WEIGHT, "Uploading mesh buffers...");
 
+        const float mesh_progress_step = scene_raw.meshes.empty()
+            ? 0.0f
+            : GPU_PROGRESS_MESH_WEIGHT / static_cast<float>(scene_raw.meshes.size());
+        float gpu_progress = GPU_PROGRESS_SHADER_WEIGHT;
         for (const auto& mesh_raw : scene_raw.meshes) {
 
             unsigned VAO, VBO, EBO;
@@ -97,8 +118,16 @@ namespace chr {
             glVertexAttribPointer(4, 3, GL_FLOAT, GL_FALSE, sizeof(chr::SceneRaw::Mesh::Vertex),
                 (void*)offsetof(chr::SceneRaw::Mesh::Vertex, bitangent));
             glBindVertexArray(0);
+
+            gpu_progress += mesh_progress_step;
+            report_progress(progress_callback, gpu_progress, "Uploading mesh buffers...");
         }
 
+        gpu_progress = GPU_PROGRESS_SHADER_WEIGHT + GPU_PROGRESS_MESH_WEIGHT;
+        report_progress(progress_callback, gpu_progress, "Uploading material textures...");
+        const float material_progress_step = scene_raw.materials.empty()
+            ? 0.0f
+            : GPU_PROGRESS_MATERIAL_WEIGHT / static_cast<float>(scene_raw.materials.size());
         for (const auto& material_raw : scene_raw.materials) {
             const uint32_t texture_diffuse =
                 graphics_util::load_texture_2d(material_raw.texture_diffuse);
@@ -111,8 +140,12 @@ namespace chr {
                 texture_normal != 0 ? texture_normal : resources->fallback_texture_normal,
                 texture_alpha_mask != 0 ? texture_alpha_mask : resources->fallback_texture_diffuse
             });
+
+            gpu_progress += material_progress_step;
+            report_progress(progress_callback, gpu_progress, "Uploading material textures...");
         }
 
+        report_progress(progress_callback, 1.0f, "Scene ready.");
         return 0;
     }
 
