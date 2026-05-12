@@ -1,0 +1,344 @@
+OpenGL Renderer Implementation Plan
+Generated from usr/spec.txt and current project state.
+
+Current State
+=============
+
+The project is already past a blank renderer stage. It has:
+
+- CMake-based Windows build with FetchContent dependencies.
+- OpenGL/GLFW/GLAD/GLM/ImGui runtime.
+- fastgltf-based glTF/GLB scene loading.
+- Intel Sponza scene bootstrap through CMake when assets/main_sponza is missing.
+- Deferred-style geometry pass with G-buffer albedo, normal, and depth.
+- Deferred lighting pass with one directional light and five fixed point lights.
+- Directional shadow map with PCF sampling.
+- SSAO pass and blur pass.
+- Debug buffer previews for albedo, normal, depth, and SSAO.
+- ImGui overlay with debug/light marker toggles.
+- Scene GPU resource upload path for meshes and textures.
+- Tangent-space normal mapping when tangents are present.
+- In-progress async scene loading and loading-screen work in src/main.cpp plus scene_async_loader/loading_screen modules.
+
+Important Gaps
+==============
+
+The spec is broad, but the highest-value gaps for this codebase are:
+
+- The current shading is Lambert-based, not physically based.
+- SceneRaw::Material stores texture paths but not material factors, alpha cutoff, alpha mode, double-sided state, emissive factor, or metallic/roughness scalar defaults.
+- Metallic/roughness, AO, and emissive textures are loaded by model_loader.cpp but are not uploaded or used by scene_gpu_resources_runtime.cpp.
+- The G-buffer does not contain material properties needed for deferred PBR.
+- Lighting, shadows, SSAO, and debug controls are mostly hard-coded in GBufferResources.
+- There is no HDR scene color target, tone mapping, gamma-correct output, bloom, or skybox.
+- Resource ownership is spread across large structs; there is no reusable shader/texture/framebuffer/resource manager yet.
+- ImGui is still a small overlay, not a renderer/debug/material control panel.
+- The async loading path appears partially integrated and should be finished before larger features.
+
+Implementation Strategy
+=======================
+
+Do not jump directly to Render Graph or Clustered Lighting. The current code can become a strong portfolio renderer faster by first stabilizing asset loading, then upgrading the material and lighting model, then adding HDR/IBL/post-processing, and only then refactoring into cleaner architecture.
+
+Phase 1: Stabilize Runtime and Loading
+======================================
+
+Goal: make startup, asset loading, and rendering flow reliable before adding visual complexity.
+
+Tasks:
+
+1. Finish async scene loading.
+   - Keep SceneAsyncLoader as the CPU-side loader.
+   - Ensure main.cpp handles loading success, failure, window close, and shutdown cleanly.
+   - Keep GPU upload on the render thread after loading completes.
+   - Add visible load-failure message and exit path.
+
+2. Split startup flow in main.cpp.
+   - Extract GLFW/GLAD/ImGui initialization helpers.
+   - Extract loading loop.
+   - Extract render loop.
+   - Keep behavior unchanged while reducing main.cpp size.
+
+3. Add basic frame stats.
+   - FPS.
+   - CPU frame time.
+   - Scene mesh/material/triangle counts.
+   - Show these in ImGui.
+
+4. Verify.
+   - Configure and build with windows-debug preset.
+   - Run with default Sponza path.
+   - Run with an invalid path and confirm graceful failure.
+
+Phase 2: Correct glTF Material Import
+=====================================
+
+Goal: preserve the material information needed for PBR without changing rendering all at once.
+
+Tasks:
+
+1. Expand SceneRaw::Material.
+   - base_color_factor.
+   - metallic_factor.
+   - roughness_factor.
+   - emissive_factor.
+   - alpha_mode enum: Opaque, Mask, Blend.
+   - alpha_cutoff.
+   - double_sided.
+   - texture paths for base color, normal, metallic-roughness, occlusion, emissive.
+
+2. Update model_loader.cpp.
+   - Read glTF scalar/factor properties from fastgltf materials.
+   - Keep local texture URI resolution.
+   - Preserve current alpha-mask behavior but store alpha mode/cutoff explicitly.
+   - Log unsupported image source cases only once or quietly skip.
+
+3. Update SceneGPUResources material storage.
+   - Upload all required texture slots.
+   - Keep fallback textures for missing slots.
+   - Avoid double-deleting shared fallback textures.
+
+4. Verify.
+   - Build.
+   - Confirm Sponza still loads.
+   - Add temporary ImGui material counts and missing-texture counts if useful.
+
+Phase 3: Deferred PBR Foundation
+================================
+
+Goal: replace Lambert lighting with metallic-roughness PBR while keeping the existing deferred pipeline.
+
+Tasks:
+
+1. Expand the G-buffer.
+   - Albedo/base color in sRGB-aware path.
+   - World or view normal.
+   - Material buffer containing roughness, metallic, AO, alpha/debug data.
+   - Keep depth reconstruction.
+
+2. Update scene shaders.
+   - Output base color, normal, metallic, roughness, AO, emissive.
+   - Apply alpha cutoff using alpha_cutoff for Mask materials.
+   - Keep alpha Blend materials deferred-disabled for now or render them as masked until forward transparency exists.
+
+3. Update deferred_light.frag.
+   - Implement Cook-Torrance GGX.
+   - Smith geometry term.
+   - Schlick Fresnel.
+   - Energy conservation.
+   - Directional light and point lights using the same BRDF helper functions.
+   - Keep existing directional shadow and SSAO inputs.
+
+4. Add material debug views.
+   - Albedo.
+   - Normal.
+   - Metallic.
+   - Roughness.
+   - AO.
+   - Emissive.
+
+5. Verify.
+   - Compare Sponza before/after.
+   - Check that normals and roughness do not look inverted.
+   - Confirm debug previews match expected channels.
+
+Phase 4: HDR Output and Tone Mapping
+====================================
+
+Goal: make PBR lighting usable with physically larger light ranges and correct display output.
+
+Tasks:
+
+1. Add HDR scene framebuffer.
+   - RGBA16F scene color.
+   - Render deferred lighting into HDR target instead of directly to default framebuffer.
+
+2. Add final fullscreen pass.
+   - Exposure.
+   - ACES tone mapping first.
+   - Gamma correction.
+
+3. Add ImGui controls.
+   - Exposure.
+   - Tone mapper selector if adding Reinhard or neutral later.
+   - Toggle gamma/tone mapping debug.
+
+4. Verify.
+   - Build and run.
+   - Check dark/bright areas in Sponza remain readable.
+   - Confirm no double-gamma on albedo.
+
+Phase 5: Image-Based Lighting
+=============================
+
+Goal: achieve the biggest visual upgrade from the spec: PBR + IBL.
+
+Tasks:
+
+1. Add HDR environment loading.
+   - Use stb_image float loading for .hdr.
+   - Start with the HDR file already present in Sponza textures if acceptable.
+
+2. Add cubemap pipeline.
+   - Equirectangular to cubemap.
+   - Irradiance cubemap.
+   - Prefiltered specular cubemap.
+   - BRDF LUT.
+
+3. Add skybox pass.
+   - Draw after opaque lighting or as part of final scene composition.
+   - Add exposure and rotation controls.
+
+4. Integrate IBL into PBR shader.
+   - Diffuse irradiance.
+   - Specular prefiltered environment.
+   - BRDF LUT.
+
+5. Verify.
+   - Add debug views for skybox, irradiance, prefilter mip, and BRDF LUT.
+   - Check rough metals and matte surfaces separately.
+
+Phase 6: Bloom and Better Post Processing
+=========================================
+
+Goal: complete a practical HDR post chain.
+
+Tasks:
+
+1. Add bloom.
+   - Bright pass from HDR scene color.
+   - Downsample chain.
+   - Upsample/blur chain.
+   - Composite before tone mapping.
+
+2. Add controls.
+   - Bloom enabled.
+   - Threshold.
+   - Intensity.
+
+3. Improve debug views.
+   - HDR color.
+   - Bloom threshold.
+   - Bloom mip.
+   - Final LDR output.
+
+Phase 7: Renderer Architecture Cleanup
+======================================
+
+Goal: make future features easier without overengineering too early.
+
+Tasks:
+
+1. Introduce small resource wrappers.
+   - Texture2D.
+   - Framebuffer.
+   - ShaderProgram.
+   - Buffer/VertexArray.
+   - Use RAII where practical, but avoid rewriting everything at once.
+
+2. Separate pass classes/modules.
+   - ShadowPass.
+   - GBufferPass.
+   - SSAOPass.
+   - DeferredLightingPass.
+   - PostProcessPass.
+   - DebugDrawPass.
+
+3. Centralize render settings.
+   - Lighting settings.
+   - SSAO settings.
+   - Shadow settings.
+   - Post-process settings.
+   - Debug settings.
+
+4. Add shader hot reload after ShaderProgram exists.
+
+Phase 8: Viewer and Editor Improvements
+=======================================
+
+Goal: make the app feel like a glTF renderer/viewer instead of a fixed demo.
+
+Tasks:
+
+1. Expand ImGui renderer panel.
+   - Render mode selector.
+   - Debug texture selector.
+   - Light controls.
+   - SSAO/shadow/post-process controls.
+
+2. Add material inspector.
+   - List materials.
+   - Show texture slot previews.
+   - Edit base color, metallic, roughness, normal strength, emissive.
+   - Apply edits live to GPU material data.
+
+3. Add scene controls.
+   - Reload current scene.
+   - Load path from command-line or text input.
+   - Reset camera.
+   - Screenshot capture.
+
+Phase 9: Advanced Portfolio Features
+====================================
+
+Only start these after PBR + IBL + HDR + controls are working.
+
+Recommended order:
+
+1. Cascaded shadow maps.
+2. Forward transparent pass for alpha blend materials.
+3. GPU timer queries and per-pass profiler.
+4. Frustum culling.
+5. Render graph or frame graph.
+6. Clustered lighting.
+7. SSR or GTAO.
+8. TAA.
+
+Near-Term Commit Plan
+=====================
+
+The next practical commits should be:
+
+1. "Finish async scene loading"
+   - Complete and verify current loading-screen integration.
+
+2. "Import glTF material factors"
+   - Expand SceneRaw material data and loader.
+
+3. "Upload PBR material textures"
+   - Add GPU material texture slots and fallbacks.
+
+4. "Add deferred PBR material buffer"
+   - Expand G-buffer and debug views.
+
+5. "Implement GGX deferred lighting"
+   - Replace Lambert path with PBR direct lighting.
+
+6. "Add HDR tone mapping pass"
+   - Add RGBA16F scene output and ACES/gamma final pass.
+
+Risk Notes
+==========
+
+- The Sponza asset is large, so avoid copying it into the build output. Keep the current source-path default behavior.
+- OpenGL texture color-space handling must be deliberate. Base color and emissive should be treated as sRGB; normal/roughness/metallic/AO must remain linear data.
+- Deferred transparency should not be solved in the PBR pass. Defer it until a separate forward transparent pass exists.
+- Keep CMake download behavior configure-time only. Do not download assets at application runtime.
+- Do not start with a full render graph. First split passes and resource wrappers; convert to a graph only when pass dependencies are clear.
+
+Definition of Done for MVP
+==========================
+
+The MVP renderer should show:
+
+- Sponza loads automatically after clone/configure.
+- Loading screen during scene import.
+- Deferred PBR with metallic-roughness, normal mapping, AO, emissive, alpha mask.
+- Directional shadow with PCF.
+- SSAO.
+- HDR tone mapping and gamma-correct output.
+- Skybox and basic IBL.
+- Bloom.
+- ImGui controls for lighting, shadow, SSAO, post-processing, and debug views.
+- Material/debug channel inspection.
+- Clean build from a fresh clone with documented resource download.
