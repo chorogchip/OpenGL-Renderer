@@ -21,6 +21,10 @@ Sponza scene을 대상으로 G-buffer, deferred lighting, shadow mapping, SSAO, 
 - `stb` for `stb_image.h`
 - Dear ImGui `v1.92.7`
 
+## Credits
+
+- Sponza 2022 Scene by Frank Meinl and Anton Kaplanyan, Intel Sample Library, licensed under CC BY 4.0.
+
 ## 빌드
 
 ```powershell

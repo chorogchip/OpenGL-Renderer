@@ -19,6 +19,7 @@ cmake_install.cmake
 compile_commands.json
 CTestTestfile.cmake
 Testing/
+/usr/
 
 # Generated binaries and libraries
 *.exe
