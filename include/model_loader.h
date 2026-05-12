@@ -5,5 +5,6 @@
 #include "scene_raw.h"
 
 namespace chr {
+    SceneRaw load_scene(const char* filename);
     SceneRaw load_obj(const char* filename);
 }

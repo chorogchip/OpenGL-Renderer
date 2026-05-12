@@ -24,6 +24,10 @@ namespace chr {
             std::string texture_diffuse;
             std::string texture_normal;
             std::string texture_alpha_mask;
+            std::string texture_metallic;
+            std::string texture_roughness;
+            std::string texture_occlusion;
+            std::string texture_emissive;
         };
         std::vector<Mesh> meshes;
         std::vector<Material> materials;

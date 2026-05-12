@@ -16,13 +16,13 @@
 
 constexpr unsigned SCREEN_WIDTH = 800;
 constexpr unsigned SCREEN_HEIGHT = 600;
-constexpr const char* SPONZA_OBJ_RELATIVE_PATH = "assets/Sponza-master/sponza.obj";
+constexpr const char* SPONZA_SCENE_RELATIVE_PATH = "assets/Sponza-master/sponza.obj";
 
 chr::Camera camera{};
 bool show_debug_views = false;
 bool show_light_markers = true;
 
-int main() {
+int main(int argc, char** argv) {
     glfwInit();
     glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 4);
     glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 5);
@@ -61,11 +61,13 @@ int main() {
         return -1;
     }
 
-    chr::SceneRaw scene_raw = chr::load_obj(SPONZA_OBJ_RELATIVE_PATH);
+    const char* scene_path = argc > 1 ? argv[1] : SPONZA_SCENE_RELATIVE_PATH;
+
+    chr::SceneRaw scene_raw = chr::load_scene(scene_path);
     if (scene_raw.meshes.empty()) {
         g_buffer_resources.clear();
         imgui_layer::shutdown();
-        std::cout << "Failed to load scene data from: " << SPONZA_OBJ_RELATIVE_PATH << std::endl;
+        std::cout << "Failed to load scene data from: " << scene_path << std::endl;
         glfwTerminate();
         return -1;
     }
