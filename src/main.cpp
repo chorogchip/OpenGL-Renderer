@@ -11,7 +11,8 @@
 #include "camera.h"
 #include "g_buffer_resources.h"
 #include "imgui_layer.h"
-#include "model_loader.h"
+#include "loading_screen.h"
+#include "scene_async_loader.h"
 #include "scene_gpu_resources.h"
 #include "scene_gpu_resources_runtime.h"
 
@@ -94,21 +95,78 @@ int main(int argc, char** argv) {
     int framebuffer_height = SCREEN_HEIGHT;
     glfwGetFramebufferSize(window, &framebuffer_width, &framebuffer_height);
 
-    chr::GBufferResources g_buffer_resources;
-    if (g_buffer_resources.init(framebuffer_width, framebuffer_height) != 0) {
-        g_buffer_resources.clear();
+    const char* scene_path = argc > 1 ? argv[1] : SPONZA_SCENE_RELATIVE_PATH;
+
+    chr::SceneAsyncLoader scene_loader;
+    if (!scene_loader.start(scene_path)) {
+        imgui_layer::shutdown();
+        std::cout << "Failed to start scene loading: " << scene_path << std::endl;
+        glfwTerminate();
+        return -1;
+    }
+
+    bool load_failed = false;
+    double load_failed_time = 0.0;
+    chr::SceneLoadSnapshot load_snapshot = scene_loader.snapshot();
+    while (!glfwWindowShouldClose(window)) {
+        scene_loader.poll();
+        load_snapshot = scene_loader.snapshot();
+
+        int current_framebuffer_width = 0;
+        int current_framebuffer_height = 0;
+        glfwGetFramebufferSize(window, &current_framebuffer_width, &current_framebuffer_height);
+        if (current_framebuffer_width > 0 && current_framebuffer_height > 0) {
+            framebuffer_width = current_framebuffer_width;
+            framebuffer_height = current_framebuffer_height;
+
+            imgui_layer::begin_frame();
+            chr::draw_loading_screen(
+                chr::make_loading_screen_state(load_snapshot),
+                framebuffer_width,
+                framebuffer_height);
+            imgui_layer::end_frame();
+            glfwSwapBuffers(window);
+        }
+
+        if (load_snapshot.status == chr::SceneLoadStatus::Ready) {
+            break;
+        }
+
+        if (load_snapshot.status == chr::SceneLoadStatus::Failed) {
+            if (!load_failed) {
+                load_failed = true;
+                load_failed_time = glfwGetTime();
+                std::cout << "Failed to load scene data from: " << scene_path
+                    << " (" << load_snapshot.error_message << ")" << std::endl;
+            }
+            else if (glfwGetTime() - load_failed_time >= 2.0) {
+                imgui_layer::shutdown();
+                glfwTerminate();
+                return -1;
+            }
+        }
+
+        glfwWaitEventsTimeout(1.0 / 60.0);
+    }
+
+    if (load_snapshot.status != chr::SceneLoadStatus::Ready || !scene_loader.has_result()) {
         imgui_layer::shutdown();
         glfwTerminate();
         return -1;
     }
 
-    const char* scene_path = argc > 1 ? argv[1] : SPONZA_SCENE_RELATIVE_PATH;
-
-    chr::SceneRaw scene_raw = chr::load_scene(scene_path);
+    chr::SceneRaw scene_raw = scene_loader.take_result();
     if (scene_raw.meshes.empty()) {
-        g_buffer_resources.clear();
         imgui_layer::shutdown();
         std::cout << "Failed to load scene data from: " << scene_path << std::endl;
+        glfwTerminate();
+        return -1;
+    }
+
+    chr::GBufferResources g_buffer_resources;
+    if (g_buffer_resources.init(framebuffer_width, framebuffer_height) != 0) {
+        g_buffer_resources.clear();
+        imgui_layer::shutdown();
         glfwTerminate();
         return -1;
     }
