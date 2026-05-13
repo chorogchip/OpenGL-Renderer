@@ -4,7 +4,7 @@ struct GLFWwindow;
 
 namespace chr {
     class Camera;
-    struct GBufferResources;
+    struct Renderer;
     struct SceneGPUResources;
     struct SceneRaw;
     struct SceneFrame;
@@ -28,14 +28,14 @@ namespace chr {
         const SceneRaw& scene_raw,
         int* framebuffer_width,
         int* framebuffer_height,
-        GBufferResources* g_buffer_resources,
+        Renderer* renderer,
         SceneGPUResources* scene_gpu_resources);
     void frame_scene_camera(Camera* camera, const SceneFrame& scene_frame);
     void run_render_loop(
         GLFWwindow* window,
         Camera* camera,
         const SceneFrame& scene_frame,
-        GBufferResources* g_buffer_resources,
+        Renderer* renderer,
         SceneGPUResources* scene_gpu_resources,
         imgui_layer::RendererOverlayStats overlay_stats);
 }

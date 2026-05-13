@@ -5,7 +5,7 @@
 
 #include "app_input.h"
 #include "camera.h"
-#include "g_buffer_resources.h"
+#include "renderer.h"
 #include "imgui_layer.h"
 #include "renderer_runtime.h"
 #include "scene_gpu_resources.h"
@@ -66,14 +66,14 @@ int main(int argc, char** argv) {
         return -1;
     }
 
-    chr::GBufferResources g_buffer_resources;
+    chr::Renderer renderer;
     chr::SceneGPUResources scene_gpu_resources;
     if (!chr::init_render_resources_with_loading_screen(
         window,
         scene_raw,
         &framebuffer_width,
         &framebuffer_height,
-        &g_buffer_resources,
+        &renderer,
         &scene_gpu_resources)) {
         imgui_layer::shutdown();
         glfwTerminate();
@@ -88,12 +88,12 @@ int main(int argc, char** argv) {
         window,
         &camera,
         scene_frame,
-        &g_buffer_resources,
+        &renderer,
         &scene_gpu_resources,
         overlay_stats);
 
     chr::clear_scene_gpu_resources(&scene_gpu_resources);
-    g_buffer_resources.clear();
+    renderer.clear();
     imgui_layer::shutdown();
     glfwTerminate();
     return 0;

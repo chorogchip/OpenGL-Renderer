@@ -11,7 +11,7 @@
 
 #include "app_input.h"
 #include "camera.h"
-#include "g_buffer_resources.h"
+#include "renderer.h"
 #include "imgui_layer.h"
 #include "loading_screen.h"
 #include "scene_async_loader.h"
@@ -131,7 +131,7 @@ namespace chr {
         const SceneRaw& scene_raw,
         int* framebuffer_width,
         int* framebuffer_height,
-        GBufferResources* g_buffer_resources,
+        Renderer* renderer,
         SceneGPUResources* scene_gpu_resources) {
         render_loading_frame(
             window,
@@ -139,8 +139,8 @@ namespace chr {
             framebuffer_width,
             framebuffer_height);
 
-        if (g_buffer_resources->init(*framebuffer_width, *framebuffer_height) != 0) {
-            g_buffer_resources->clear();
+        if (renderer->init(*framebuffer_width, *framebuffer_height) != 0) {
+            renderer->clear();
             return false;
         }
         render_loading_frame(
@@ -172,7 +172,7 @@ namespace chr {
 
         if (scene_gpu_init_state.phase != SceneGPUInitPhase::Complete) {
             clear_scene_gpu_resources(scene_gpu_resources);
-            g_buffer_resources->clear();
+            renderer->clear();
             return false;
         }
 
@@ -190,13 +190,13 @@ namespace chr {
         GLFWwindow* window,
         Camera* camera,
         const SceneFrame& scene_frame,
-        GBufferResources* g_buffer_resources,
+        Renderer* renderer,
         SceneGPUResources* scene_gpu_resources,
         imgui_layer::RendererOverlayStats overlay_stats) {
         bool show_debug_views = false;
         bool show_light_markers = true;
-        int framebuffer_width = g_buffer_resources->width;
-        int framebuffer_height = g_buffer_resources->height;
+        int framebuffer_width = renderer->width;
+        int framebuffer_height = renderer->height;
         float last_time = static_cast<float>(glfwGetTime());
         uint64_t frames = 0;
         double previous_cpu_frame_ms = 0.0;
@@ -227,7 +227,7 @@ namespace chr {
             }
 
             if (current_framebuffer_width != framebuffer_width || current_framebuffer_height != framebuffer_height) {
-                if (g_buffer_resources->resize(current_framebuffer_width, current_framebuffer_height) != 0) {
+                if (renderer->resize(current_framebuffer_width, current_framebuffer_height) != 0) {
                     break;
                 }
                 framebuffer_width = current_framebuffer_width;
@@ -243,23 +243,23 @@ namespace chr {
             draw_params.mat_view = camera->get_view_matrix();
             draw_params.mat_model = glm::scale(glm::mat4(1.0f), glm::vec3(scene_frame.scale));
 
-            g_buffer_resources->bind_for_shadow_pass();
+            renderer->bind_for_shadow_pass();
             glClear(GL_DEPTH_BUFFER_BIT);
             render_scene_gpu_resources_shadow(
                 *scene_gpu_resources,
                 draw_params.mat_model,
-                g_buffer_resources->get_directional_light_view_projection());
+                renderer->get_directional_light_view_projection());
 
-            g_buffer_resources->bind_for_geometry_pass();
+            renderer->bind_for_geometry_pass();
             glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
             glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
             render_scene_gpu_resources(*scene_gpu_resources, draw_params);
-            g_buffer_resources->draw_lighting_pass(draw_params.mat_projection, draw_params.mat_view);
+            renderer->draw_lighting_pass(draw_params.mat_projection, draw_params.mat_view);
             if (show_light_markers) {
-                g_buffer_resources->draw_light_markers(draw_params.mat_projection, draw_params.mat_view);
+                renderer->draw_light_markers(draw_params.mat_projection, draw_params.mat_view);
             }
             if (show_debug_views) {
-                g_buffer_resources->draw_debug_views();
+                renderer->draw_debug_views();
             }
 
             overlay_stats.fps = delta_time > 0.0f ? 1.0 / static_cast<double>(delta_time) : 0.0;
