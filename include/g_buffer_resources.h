@@ -5,6 +5,13 @@
 
 #include <glm/glm.hpp>
 
+#include "ssao_pass.h"
+#include "tone_mapping_pass.h"
+#include "debug_preview_pass.h"
+#include "deferred_lighting_pass.h"
+#include "light_marker_pass.h"
+#include "shadow_pass.h"
+
 namespace chr {
 
     struct GBufferResources {
@@ -13,65 +20,18 @@ namespace chr {
         uint32_t texture_normal = 0;
         uint32_t texture_material = 0;
         uint32_t texture_depth = 0;
-        uint32_t shadow_framebuffer = 0;
-        uint32_t shadow_texture_depth = 0;
+        ShadowPass shadow_pass;
         uint32_t hdr_framebuffer = 0;
         uint32_t texture_scene_color = 0;
-        uint32_t ssao_framebuffer = 0;
-        uint32_t ssao_blur_framebuffer = 0;
-        uint32_t texture_ssao = 0;
-        uint32_t texture_ssao_blur = 0;
-        uint32_t texture_ssao_noise = 0;
+        SSAOPass ssao_pass;
         uint32_t quad_vao = 0;
         uint32_t quad_vbo = 0;
-        uint32_t light_marker_vao = 0;
-        uint32_t light_marker_vbo = 0;
-        uint32_t lighting_shader_program = 0;
-        uint32_t tone_map_shader_program = 0;
-        uint32_t ssao_shader_program = 0;
-        uint32_t ssao_blur_shader_program = 0;
-        uint32_t debug_shader_program = 0;
-        uint32_t light_marker_shader_program = 0;
+        DeferredLightingPass deferred_lighting_pass;
+        ToneMappingPass tone_mapping_pass;
+        DebugPreviewPass debug_preview_pass;
+        LightMarkerPass light_marker_pass;
         int width = 0;
         int height = 0;
-        int uniform_g_albedo = -1;
-        int uniform_g_normal = -1;
-        int uniform_g_material = -1;
-        int uniform_g_depth = -1;
-        int uniform_shadow_map = -1;
-        int uniform_ssao_map = -1;
-        int uniform_inverse_projection = -1;
-        int uniform_inverse_view = -1;
-        int uniform_light_view_projection = -1;
-        int uniform_light_direction = -1;
-        int uniform_light_color = -1;
-        int uniform_ambient_strength = -1;
-        int uniform_diffuse_strength = -1;
-        int uniform_point_light_count = -1;
-        std::array<int, 5> uniform_point_light_positions = { -1, -1, -1, -1, -1 };
-        std::array<int, 5> uniform_point_light_colors = { -1, -1, -1, -1, -1 };
-        std::array<int, 5> uniform_point_light_intensities = { -1, -1, -1, -1, -1 };
-        std::array<int, 5> uniform_point_light_ranges = { -1, -1, -1, -1, -1 };
-        int uniform_tone_scene_color = -1;
-        int uniform_tone_exposure = -1;
-        int uniform_ssao_g_normal = -1;
-        int uniform_ssao_g_depth = -1;
-        int uniform_ssao_noise_texture = -1;
-        int uniform_ssao_projection = -1;
-        int uniform_ssao_inverse_projection = -1;
-        int uniform_ssao_noise_scale = -1;
-        std::array<int, 16> uniform_ssao_samples = {
-            -1, -1, -1, -1, -1, -1, -1, -1,
-            -1, -1, -1, -1, -1, -1, -1, -1
-        };
-        int uniform_ssao_blur_texture = -1;
-        int uniform_marker_model = -1;
-        int uniform_marker_view = -1;
-        int uniform_marker_projection = -1;
-        int uniform_marker_color = -1;
-        int uniform_debug_texture = -1;
-        int uniform_debug_mode = -1;
-
         int init(int width, int height);
         int resize(int width, int height);
         void clear();

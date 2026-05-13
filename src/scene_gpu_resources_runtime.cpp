@@ -18,7 +18,7 @@ namespace {
     constexpr float GPU_PROGRESS_MESH_WEIGHT = 0.30f;
     constexpr float GPU_PROGRESS_MATERIAL_WEIGHT = 0.60f;
 
-    uint32_t create_fallback_texture(const unsigned char rgba[4]) {
+    static uint32_t create_fallback_texture(const unsigned char rgba[4]) {
         uint32_t texture = 0;
         glGenTextures(1, &texture);
         glBindTexture(GL_TEXTURE_2D, texture);
@@ -32,7 +32,7 @@ namespace {
         return texture;
     }
 
-    void report_progress(
+    static void report_progress(
         const chr::SceneGPUProgressCallback& progress_callback,
         const float progress,
         const char* message) {
@@ -41,7 +41,7 @@ namespace {
         }
     }
 
-    float calculate_mesh_progress(const chr::SceneGPUInitState& state) {
+    static float calculate_mesh_progress(const chr::SceneGPUInitState& state) {
         if (state.scene_raw == nullptr || state.scene_raw->meshes.empty()) {
             return GPU_PROGRESS_SHADER_WEIGHT + GPU_PROGRESS_MESH_WEIGHT;
         }
@@ -51,7 +51,7 @@ namespace {
             (static_cast<float>(state.mesh_index) / static_cast<float>(state.scene_raw->meshes.size()));
     }
 
-    float calculate_material_progress(const chr::SceneGPUInitState& state) {
+    static float calculate_material_progress(const chr::SceneGPUInitState& state) {
         if (state.scene_raw == nullptr || state.scene_raw->materials.empty()) {
             return 1.0f;
         }
@@ -66,7 +66,7 @@ namespace {
             GPU_PROGRESS_MATERIAL_WEIGHT * (completed_steps / total_steps);
     }
 
-    bool init_scene_gpu_shaders(chr::SceneGPUResources* resources) {
+    static bool init_scene_gpu_shaders(chr::SceneGPUResources* resources) {
 
         unsigned shader_program = graphics_util::create_shader_program_from_files(
             VERTEX_SHADER_PATH, FRAGMENT_SHADER_PATH);
@@ -112,7 +112,7 @@ namespace {
         return true;
     }
 
-    void upload_scene_mesh(
+    static void upload_scene_mesh(
         chr::SceneGPUResources* resources,
         const chr::SceneRaw::Mesh& mesh_raw) {
         unsigned VAO, VBO, EBO;
@@ -149,7 +149,7 @@ namespace {
         glBindVertexArray(0);
     }
 
-    bool upload_texture_when_decoded(
+    static bool upload_texture_when_decoded(
         chr::SceneGPUInitState* state,
         const std::string& path,
         const graphics_util::TextureColorSpace color_space,
