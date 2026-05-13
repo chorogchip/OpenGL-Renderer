@@ -74,9 +74,10 @@ namespace graphics_util {
 		return shader_program;
 	}
 
-	uint32_t load_texture_2d(const std::string& filename) {
+	TextureImage load_texture_image(const std::string& filename) {
+		TextureImage image{};
 		if (filename.empty()) {
-			return 0;
+			return image;
 		}
 
 		int tex_width = 0;
@@ -89,6 +90,21 @@ namespace graphics_util {
 			&tex_width, &tex_height, &tex_channels, STBI_rgb_alpha);
 		if (data == nullptr) {
 			std::cout << "Failed to load texture: " << filename << std::endl;
+			return image;
+		}
+
+		image.width = tex_width;
+		image.height = tex_height;
+		image.channels = STBI_rgb_alpha;
+		const std::size_t pixel_count = static_cast<std::size_t>(tex_width) *
+			static_cast<std::size_t>(tex_height) * STBI_rgb_alpha;
+		image.pixels.assign(data, data + pixel_count);
+		stbi_image_free(data);
+		return image;
+	}
+
+	uint32_t create_texture_2d(const TextureImage& image, const TextureColorSpace color_space) {
+		if (image.width <= 0 || image.height <= 0 || image.pixels.empty()) {
 			return 0;
 		}
 
@@ -102,14 +118,18 @@ namespace graphics_util {
 		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
 		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 		glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
+		const GLint internal_format = color_space == TextureColorSpace::Srgb ? GL_SRGB8_ALPHA8 : GL_RGBA8;
 		glTexImage2D(
-			GL_TEXTURE_2D, 0, GL_RGBA8,
-			tex_width, tex_height, 0, GL_RGBA, GL_UNSIGNED_BYTE, data);
+			GL_TEXTURE_2D, 0, internal_format,
+			image.width, image.height, 0, GL_RGBA, GL_UNSIGNED_BYTE, image.pixels.data());
 		glGenerateMipmap(GL_TEXTURE_2D);
 		glPixelStorei(GL_UNPACK_ALIGNMENT, prev_unpack_alignment);
-		stbi_image_free(data);
 
 		return texture;
+	}
+
+	uint32_t load_texture_2d(const std::string& filename, const TextureColorSpace color_space) {
+		return create_texture_2d(load_texture_image(filename), color_space);
 	}
 
 }

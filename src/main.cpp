@@ -1,7 +1,5 @@
-#include <iostream>
 #include <immintrin.h>
-#include <algorithm>
-#include <limits>
+#include <iostream>
 
 #include <glad/glad.h>
 #include <GLFW/glfw3.h>
@@ -12,10 +10,10 @@
 #include "camera.h"
 #include "g_buffer_resources.h"
 #include "imgui_layer.h"
-#include "loading_screen.h"
-#include "scene_async_loader.h"
+#include "renderer_runtime.h"
 #include "scene_gpu_resources.h"
 #include "scene_gpu_resources_runtime.h"
+#include "scene_runtime.h"
 
 constexpr unsigned SCREEN_WIDTH = 800;
 constexpr unsigned SCREEN_HEIGHT = 600;
@@ -27,83 +25,6 @@ constexpr const char* SPONZA_SCENE_RELATIVE_PATH = OPENGL_RENDERER_DEFAULT_SPONZ
 chr::Camera camera{};
 bool show_debug_views = false;
 bool show_light_markers = true;
-
-namespace {
-    constexpr float SCENE_FILE_PROGRESS_WEIGHT = 0.55f;
-    constexpr float FRAMEBUFFER_PROGRESS_WEIGHT = 0.07f;
-    constexpr float GPU_RESOURCE_PROGRESS_WEIGHT = 0.38f;
-    constexpr double EXPECTED_SCENE_FILE_LOAD_SECONDS = 8.0;
-
-    struct SceneFrame {
-        glm::vec3 center = glm::vec3(0.0f);
-        float scale = 1.0f;
-        float radius = 1.0f;
-    };
-
-    SceneFrame calculate_scene_frame(const chr::SceneRaw& scene_raw) {
-        glm::vec3 min_bounds(std::numeric_limits<float>::max());
-        glm::vec3 max_bounds(std::numeric_limits<float>::lowest());
-        bool has_vertex = false;
-
-        for (const auto& mesh : scene_raw.meshes) {
-            for (const auto& vertex : mesh.vertices) {
-                min_bounds = glm::min(min_bounds, vertex.position);
-                max_bounds = glm::max(max_bounds, vertex.position);
-                has_vertex = true;
-            }
-        }
-
-        if (!has_vertex) {
-            return {};
-        }
-
-        const glm::vec3 center = (min_bounds + max_bounds) * 0.5f;
-        const glm::vec3 extent = max_bounds - min_bounds;
-        const float max_extent = glm::max(glm::max(extent.x, extent.y), extent.z);
-        const float scale = max_extent > 0.0001f ? 20.0f / max_extent : 1.0f;
-
-        SceneFrame frame{};
-        frame.center = center;
-        frame.scale = scale;
-        frame.radius = glm::length(extent) * 0.5f * scale;
-        return frame;
-    }
-
-    chr::LoadingScreenState make_progress_loading_state(
-        const std::string& title,
-        const std::string& message,
-        const float progress) {
-        chr::LoadingScreenState state{};
-        state.status = chr::SceneLoadStatus::Loading;
-        state.title = title;
-        state.message = message;
-        state.progress = std::clamp(progress, 0.0f, 1.0f);
-        return state;
-    }
-
-    void render_loading_frame(
-        GLFWwindow* window,
-        const chr::LoadingScreenState& state,
-        int* framebuffer_width,
-        int* framebuffer_height) {
-        int current_framebuffer_width = 0;
-        int current_framebuffer_height = 0;
-        glfwGetFramebufferSize(window, &current_framebuffer_width, &current_framebuffer_height);
-        if (current_framebuffer_width <= 0 || current_framebuffer_height <= 0) {
-            glfwPollEvents();
-            return;
-        }
-
-        *framebuffer_width = current_framebuffer_width;
-        *framebuffer_height = current_framebuffer_height;
-
-        imgui_layer::begin_frame();
-        chr::draw_loading_screen(state, *framebuffer_width, *framebuffer_height);
-        imgui_layer::end_frame();
-        glfwSwapBuffers(window);
-        glfwPollEvents();
-    }
-}
 
 int main(int argc, char** argv) {
     glfwInit();
@@ -138,118 +59,33 @@ int main(int argc, char** argv) {
 
     const char* scene_path = argc > 1 ? argv[1] : SPONZA_SCENE_RELATIVE_PATH;
 
-    chr::SceneAsyncLoader scene_loader;
-    if (!scene_loader.start(scene_path)) {
-        imgui_layer::shutdown();
-        std::cout << "Failed to start scene loading: " << scene_path << std::endl;
-        glfwTerminate();
-        return -1;
-    }
-
-    bool load_failed = false;
-    double load_failed_time = 0.0;
-    const double scene_load_start_time = glfwGetTime();
-    chr::SceneLoadSnapshot load_snapshot = scene_loader.snapshot();
-    while (!glfwWindowShouldClose(window)) {
-        scene_loader.poll();
-        load_snapshot = scene_loader.snapshot();
-
-        chr::LoadingScreenState loading_state = chr::make_loading_screen_state(load_snapshot);
-        if (load_snapshot.status == chr::SceneLoadStatus::Loading) {
-            const double elapsed = glfwGetTime() - scene_load_start_time;
-            const float scene_file_progress = static_cast<float>(
-                std::min(elapsed / EXPECTED_SCENE_FILE_LOAD_SECONDS, 0.97));
-            loading_state.progress = scene_file_progress * SCENE_FILE_PROGRESS_WEIGHT;
-        }
-        else if (load_snapshot.status == chr::SceneLoadStatus::Ready) {
-            loading_state.progress = SCENE_FILE_PROGRESS_WEIGHT;
-        }
-        render_loading_frame(window, loading_state, &framebuffer_width, &framebuffer_height);
-
-        if (load_snapshot.status == chr::SceneLoadStatus::Ready) {
-            break;
-        }
-
-        if (load_snapshot.status == chr::SceneLoadStatus::Failed) {
-            if (!load_failed) {
-                load_failed = true;
-                load_failed_time = glfwGetTime();
-                std::cout << "Failed to load scene data from: " << scene_path
-                    << " (" << load_snapshot.error_message << ")" << std::endl;
-            }
-            else if (glfwGetTime() - load_failed_time >= 2.0) {
-                imgui_layer::shutdown();
-                glfwTerminate();
-                return -1;
-            }
-        }
-
-        glfwWaitEventsTimeout(1.0 / 60.0);
-    }
-
-    if (load_snapshot.status != chr::SceneLoadStatus::Ready || !scene_loader.has_result()) {
-        imgui_layer::shutdown();
-        glfwTerminate();
-        return -1;
-    }
-
-    chr::SceneRaw scene_raw = scene_loader.take_result();
-    if (scene_raw.meshes.empty()) {
-        imgui_layer::shutdown();
-        std::cout << "Failed to load scene data from: " << scene_path << std::endl;
-        glfwTerminate();
-        return -1;
-    }
-
-    render_loading_frame(
+    chr::SceneRaw scene_raw;
+    if (!chr::load_scene_with_loading_screen(
         window,
-        make_progress_loading_state("Preparing Renderer", "Creating frame buffers...", SCENE_FILE_PROGRESS_WEIGHT),
+        scene_path,
         &framebuffer_width,
-        &framebuffer_height);
+        &framebuffer_height,
+        &scene_raw)) {
+        imgui_layer::shutdown();
+        glfwTerminate();
+        return -1;
+    }
 
     chr::GBufferResources g_buffer_resources;
-    if (g_buffer_resources.init(framebuffer_width, framebuffer_height) != 0) {
-        g_buffer_resources.clear();
-        imgui_layer::shutdown();
-        glfwTerminate();
-        return -1;
-    }
-    render_loading_frame(
-        window,
-        make_progress_loading_state(
-            "Preparing Renderer",
-            "Frame buffers ready.",
-            SCENE_FILE_PROGRESS_WEIGHT + FRAMEBUFFER_PROGRESS_WEIGHT),
-        &framebuffer_width,
-        &framebuffer_height);
-
     chr::SceneGPUResources scene_gpu_resources;
-    chr::SceneGPUInitState scene_gpu_init_state;
-    chr::begin_scene_gpu_resources_init(&scene_gpu_resources, scene_raw, &scene_gpu_init_state);
-    while (!glfwWindowShouldClose(window) &&
-        scene_gpu_init_state.phase != chr::SceneGPUInitPhase::Complete) {
-        if (!chr::step_scene_gpu_resources_init(&scene_gpu_resources, &scene_gpu_init_state)) {
-            break;
-        }
-
-        const float total_progress = SCENE_FILE_PROGRESS_WEIGHT +
-            FRAMEBUFFER_PROGRESS_WEIGHT +
-            GPU_RESOURCE_PROGRESS_WEIGHT * scene_gpu_init_state.progress;
-        render_loading_frame(
-            window,
-            make_progress_loading_state("Uploading Scene", scene_gpu_init_state.message, total_progress),
-            &framebuffer_width,
-            &framebuffer_height);
-    }
-    if (scene_gpu_init_state.phase != chr::SceneGPUInitPhase::Complete) {
-        chr::clear_scene_gpu_resources(&scene_gpu_resources);
-        g_buffer_resources.clear();
+    if (!chr::init_render_resources_with_loading_screen(
+        window,
+        scene_raw,
+        &framebuffer_width,
+        &framebuffer_height,
+        &g_buffer_resources,
+        &scene_gpu_resources)) {
         imgui_layer::shutdown();
         glfwTerminate();
         return -1;
     }
 
-    const SceneFrame scene_frame = calculate_scene_frame(scene_raw);
+    const chr::SceneFrame scene_frame = chr::calculate_scene_frame(scene_raw);
     const glm::vec3 scene_center = scene_frame.center * scene_frame.scale;
     const float camera_distance = glm::max(scene_frame.radius * 1.8f, 25.0f);
     camera.set_position(scene_center + glm::vec3(0.0f, camera_distance * 0.35f, camera_distance));
@@ -257,6 +93,9 @@ int main(int argc, char** argv) {
 
     float last_time = static_cast<float>(glfwGetTime());
     uint64_t frames = 0;
+    double previous_cpu_frame_ms = 0.0;
+    imgui_layer::RendererOverlayStats overlay_stats =
+        chr::calculate_scene_overlay_stats(scene_raw, scene_path);
     while (!glfwWindowShouldClose(window)) {
         
         float cur_time = static_cast<float>(glfwGetTime());
@@ -294,6 +133,7 @@ int main(int argc, char** argv) {
             framebuffer_height = current_framebuffer_height;
         }
 
+        const double frame_cpu_start_time = glfwGetTime();
         imgui_layer::begin_frame();
 
         chr::SceneDrawParams draw_params{};
@@ -320,12 +160,16 @@ int main(int argc, char** argv) {
         if (show_debug_views) {
             g_buffer_resources.draw_debug_views();
         }
-        imgui_layer::draw_overlay(&show_debug_views, &show_light_markers);
+        overlay_stats.fps = delta_time > 0.0f ? 1.0 / static_cast<double>(delta_time) : 0.0;
+        overlay_stats.cpu_frame_ms = previous_cpu_frame_ms;
+        overlay_stats.frame_index = frames;
+        imgui_layer::draw_overlay(&show_debug_views, &show_light_markers, overlay_stats);
         imgui_layer::end_frame();
 
         glfwSwapBuffers(window);
         glfwPollEvents();
 
+        previous_cpu_frame_ms = (glfwGetTime() - frame_cpu_start_time) * 1000.0;
         ++frames;
     }
 

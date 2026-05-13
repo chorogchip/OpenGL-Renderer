@@ -11,9 +11,12 @@ namespace chr {
         uint32_t framebuffer = 0;
         uint32_t texture_albedo = 0;
         uint32_t texture_normal = 0;
+        uint32_t texture_material = 0;
         uint32_t texture_depth = 0;
         uint32_t shadow_framebuffer = 0;
         uint32_t shadow_texture_depth = 0;
+        uint32_t hdr_framebuffer = 0;
+        uint32_t texture_scene_color = 0;
         uint32_t ssao_framebuffer = 0;
         uint32_t ssao_blur_framebuffer = 0;
         uint32_t texture_ssao = 0;
@@ -24,6 +27,7 @@ namespace chr {
         uint32_t light_marker_vao = 0;
         uint32_t light_marker_vbo = 0;
         uint32_t lighting_shader_program = 0;
+        uint32_t tone_map_shader_program = 0;
         uint32_t ssao_shader_program = 0;
         uint32_t ssao_blur_shader_program = 0;
         uint32_t debug_shader_program = 0;
@@ -32,6 +36,7 @@ namespace chr {
         int height = 0;
         int uniform_g_albedo = -1;
         int uniform_g_normal = -1;
+        int uniform_g_material = -1;
         int uniform_g_depth = -1;
         int uniform_shadow_map = -1;
         int uniform_ssao_map = -1;
@@ -47,6 +52,8 @@ namespace chr {
         std::array<int, 5> uniform_point_light_colors = { -1, -1, -1, -1, -1 };
         std::array<int, 5> uniform_point_light_intensities = { -1, -1, -1, -1, -1 };
         std::array<int, 5> uniform_point_light_ranges = { -1, -1, -1, -1, -1 };
+        int uniform_tone_scene_color = -1;
+        int uniform_tone_exposure = -1;
         int uniform_ssao_g_normal = -1;
         int uniform_ssao_g_depth = -1;
         int uniform_ssao_noise_texture = -1;

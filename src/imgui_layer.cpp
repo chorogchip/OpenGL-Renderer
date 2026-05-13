@@ -44,12 +44,27 @@ namespace imgui_layer {
         ImGui::NewFrame();
     }
 
-    void draw_overlay(bool* show_debug_views, bool* show_light_markers) {
+    void draw_overlay(
+        bool* show_debug_views,
+        bool* show_light_markers,
+        const RendererOverlayStats& stats) {
         ImGui::Begin("Renderer");
         ImGui::Text("Render Controls");
         ImGui::Separator();
         ImGui::Checkbox("Debug G-buffer Views", show_debug_views);
         ImGui::Checkbox("Point Light Markers", show_light_markers);
+        ImGui::Separator();
+        ImGui::Text("Frame: %llu", static_cast<unsigned long long>(stats.frame_index));
+        ImGui::Text("FPS: %.1f", stats.fps);
+        ImGui::Text("CPU Frame: %.2f ms", stats.cpu_frame_ms);
+        ImGui::Separator();
+        ImGui::Text("Scene: %s", stats.scene_path != nullptr ? stats.scene_path : "(none)");
+        ImGui::Text("Meshes: %zu", stats.mesh_count);
+        ImGui::Text("Materials: %zu", stats.material_count);
+        ImGui::Text("Vertices: %zu", stats.vertex_count);
+        ImGui::Text("Indices: %zu", stats.index_count);
+        ImGui::Text("Triangles: %zu", stats.triangle_count);
+        ImGui::Text("Texture Slots: %zu", stats.texture_slot_count);
         ImGui::Separator();
         ImGui::TextUnformatted("W/A/S/D: move");
         ImGui::TextUnformatted("Left drag: rotate camera");

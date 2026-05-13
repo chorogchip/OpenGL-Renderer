@@ -2,7 +2,10 @@
 
 #include <functional>
 #include <cstddef>
+#include <future>
+#include <string>
 
+#include "graphics_util.h"
 #include "scene_gpu_resources.h"
 
 namespace chr {
@@ -23,9 +26,14 @@ namespace chr {
         std::size_t mesh_index = 0;
         std::size_t material_index = 0;
         std::size_t material_texture_step = 0;
+        std::future<graphics_util::TextureImage> pending_texture_decode;
+        std::string pending_texture_path;
         uint32_t pending_texture_diffuse = 0;
         uint32_t pending_texture_normal = 0;
         uint32_t pending_texture_alpha_mask = 0;
+        uint32_t pending_texture_metallic_roughness = 0;
+        uint32_t pending_texture_occlusion = 0;
+        uint32_t pending_texture_emissive = 0;
         float progress = 0.0f;
         const char* message = "Compiling scene shaders...";
     };

@@ -12,6 +12,7 @@
 namespace {
     constexpr const char* LIGHTING_VERTEX_SHADER_PATH = "assets/shaders/deferred_light.vert";
     constexpr const char* LIGHTING_FRAGMENT_SHADER_PATH = "assets/shaders/deferred_light.frag";
+    constexpr const char* TONE_MAP_FRAGMENT_SHADER_PATH = "assets/shaders/tone_map.frag";
     constexpr const char* SSAO_FRAGMENT_SHADER_PATH = "assets/shaders/ssao.frag";
     constexpr const char* SSAO_BLUR_FRAGMENT_SHADER_PATH = "assets/shaders/ssao_blur.frag";
     constexpr const char* DEBUG_FRAGMENT_SHADER_PATH = "assets/shaders/debug_buffer.frag";
@@ -29,6 +30,7 @@ namespace {
     constexpr int SSAO_NOISE_SIZE = 4;
     constexpr float AMBIENT_STRENGTH = 0.32f;
     constexpr float DIFFUSE_STRENGTH = 0.85f;
+    constexpr float DEFAULT_EXPOSURE = 1.0f;
     constexpr int POINT_LIGHT_COUNT = 5;
     constexpr float LIGHT_MARKER_SCALE = 0.18f;
 
@@ -140,6 +142,18 @@ namespace {
         glFramebufferTexture2D(
             GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT1, GL_TEXTURE_2D, resources->texture_normal, 0);
 
+        glGenTextures(1, &resources->texture_material);
+        glBindTexture(GL_TEXTURE_2D, resources->texture_material);
+        glTexImage2D(
+            GL_TEXTURE_2D, 0, GL_RGBA8,
+            width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, nullptr);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+        glFramebufferTexture2D(
+            GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT2, GL_TEXTURE_2D, resources->texture_material, 0);
+
         glGenTextures(1, &resources->texture_depth);
         glBindTexture(GL_TEXTURE_2D, resources->texture_depth);
         glTexImage2D(
@@ -154,9 +168,10 @@ namespace {
 
         constexpr GLenum draw_buffers[] = {
             GL_COLOR_ATTACHMENT0,
-            GL_COLOR_ATTACHMENT1
+            GL_COLOR_ATTACHMENT1,
+            GL_COLOR_ATTACHMENT2
         };
-        glDrawBuffers(2, draw_buffers);
+        glDrawBuffers(3, draw_buffers);
 
         if (glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE) {
             std::cout << "Err: G-buffer framebuffer is incomplete." << std::endl;
@@ -192,6 +207,30 @@ namespace {
 
         if (glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE) {
             std::cout << "Err: Shadow framebuffer is incomplete." << std::endl;
+            glBindFramebuffer(GL_FRAMEBUFFER, 0);
+            return -1;
+        }
+
+        glBindFramebuffer(GL_FRAMEBUFFER, 0);
+        return 0;
+    }
+
+    int create_hdr_attachments(chr::GBufferResources* resources, int width, int height) {
+        glGenFramebuffers(1, &resources->hdr_framebuffer);
+        glBindFramebuffer(GL_FRAMEBUFFER, resources->hdr_framebuffer);
+
+        glGenTextures(1, &resources->texture_scene_color);
+        glBindTexture(GL_TEXTURE_2D, resources->texture_scene_color);
+        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA16F, width, height, 0, GL_RGBA, GL_FLOAT, nullptr);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+        glFramebufferTexture2D(
+            GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, resources->texture_scene_color, 0);
+
+        if (glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE) {
+            std::cout << "Err: HDR framebuffer is incomplete." << std::endl;
             glBindFramebuffer(GL_FRAMEBUFFER, 0);
             return -1;
         }
@@ -265,6 +304,11 @@ namespace {
             resources->texture_normal = 0;
         }
 
+        if (resources->texture_material != 0) {
+            glDeleteTextures(1, &resources->texture_material);
+            resources->texture_material = 0;
+        }
+
         if (resources->texture_albedo != 0) {
             glDeleteTextures(1, &resources->texture_albedo);
             resources->texture_albedo = 0;
@@ -288,6 +332,17 @@ namespace {
         if (resources->shadow_framebuffer != 0) {
             glDeleteFramebuffers(1, &resources->shadow_framebuffer);
             resources->shadow_framebuffer = 0;
+        }
+    }
+
+    void clear_hdr_attachments(chr::GBufferResources* resources) {
+        if (resources->texture_scene_color != 0) {
+            glDeleteTextures(1, &resources->texture_scene_color);
+            resources->texture_scene_color = 0;
+        }
+        if (resources->hdr_framebuffer != 0) {
+            glDeleteFramebuffers(1, &resources->hdr_framebuffer);
+            resources->hdr_framebuffer = 0;
         }
     }
 
@@ -330,6 +385,10 @@ namespace chr {
             return -1;
         }
         if (create_shadow_attachments(this) != 0) {
+            clear();
+            return -1;
+        }
+        if (create_hdr_attachments(this, width, height) != 0) {
             clear();
             return -1;
         }
@@ -421,6 +480,7 @@ namespace chr {
 
         this->uniform_g_albedo = glGetUniformLocation(this->lighting_shader_program, "gAlbedo");
         this->uniform_g_normal = glGetUniformLocation(this->lighting_shader_program, "gNormal");
+        this->uniform_g_material = glGetUniformLocation(this->lighting_shader_program, "gMaterial");
         this->uniform_g_depth = glGetUniformLocation(this->lighting_shader_program, "gDepth");
         this->uniform_shadow_map = glGetUniformLocation(this->lighting_shader_program, "uShadowMap");
         this->uniform_ssao_map = glGetUniformLocation(this->lighting_shader_program, "uSsaoMap");
@@ -443,6 +503,42 @@ namespace chr {
             snprintf(uniform_name, sizeof(uniform_name), "uPointLightRanges[%d]", i);
             this->uniform_point_light_ranges[i] = glGetUniformLocation(this->lighting_shader_program, uniform_name);
         }
+
+        const unsigned tone_map_vertex_shader = graphics_util::compile_shader_from_file(
+            GL_VERTEX_SHADER, LIGHTING_VERTEX_SHADER_PATH);
+        if (tone_map_vertex_shader == 0) {
+            clear();
+            return -1;
+        }
+        const unsigned tone_map_fragment_shader = graphics_util::compile_shader_from_file(
+            GL_FRAGMENT_SHADER, TONE_MAP_FRAGMENT_SHADER_PATH);
+        if (tone_map_fragment_shader == 0) {
+            glDeleteShader(tone_map_vertex_shader);
+            clear();
+            return -1;
+        }
+
+        this->tone_map_shader_program = glCreateProgram();
+        glAttachShader(this->tone_map_shader_program, tone_map_vertex_shader);
+        glAttachShader(this->tone_map_shader_program, tone_map_fragment_shader);
+        glLinkProgram(this->tone_map_shader_program);
+
+        succeed = 0;
+        glGetProgramiv(this->tone_map_shader_program, GL_LINK_STATUS, &succeed);
+        if (!succeed) {
+            char log_buf[512];
+            glGetProgramInfoLog(this->tone_map_shader_program, 512, nullptr, log_buf);
+            std::cout << "Err: Tone map shader link failed: " << log_buf << std::endl;
+            glDeleteShader(tone_map_vertex_shader);
+            glDeleteShader(tone_map_fragment_shader);
+            clear();
+            return -1;
+        }
+        glDeleteShader(tone_map_vertex_shader);
+        glDeleteShader(tone_map_fragment_shader);
+
+        this->uniform_tone_scene_color = glGetUniformLocation(this->tone_map_shader_program, "uSceneColor");
+        this->uniform_tone_exposure = glGetUniformLocation(this->tone_map_shader_program, "uExposure");
 
         const unsigned ssao_vertex_shader = graphics_util::compile_shader_from_file(
             GL_VERTEX_SHADER, LIGHTING_VERTEX_SHADER_PATH);
@@ -614,6 +710,11 @@ namespace chr {
             clear_g_buffer_attachments(this);
             return -1;
         }
+        clear_hdr_attachments(this);
+        if (create_hdr_attachments(this, width, height) != 0) {
+            clear_hdr_attachments(this);
+            return -1;
+        }
         clear_ssao_attachments(this);
         if (create_ssao_attachments(this, width, height) != 0) {
             clear_ssao_attachments(this);
@@ -625,6 +726,10 @@ namespace chr {
     }
 
     void GBufferResources::clear() {
+        if (this->tone_map_shader_program != 0) {
+            glDeleteProgram(this->tone_map_shader_program);
+            this->tone_map_shader_program = 0;
+        }
         if (this->debug_shader_program != 0) {
             glDeleteProgram(this->debug_shader_program);
             this->debug_shader_program = 0;
@@ -669,11 +774,13 @@ namespace chr {
 
         clear_g_buffer_attachments(this);
         clear_shadow_attachments(this);
+        clear_hdr_attachments(this);
         clear_ssao_attachments(this);
         this->uniform_shadow_map = -1;
         this->uniform_ssao_map = -1;
         this->uniform_g_albedo = -1;
         this->uniform_g_normal = -1;
+        this->uniform_g_material = -1;
         this->uniform_g_depth = -1;
         this->uniform_inverse_projection = -1;
         this->uniform_inverse_view = -1;
@@ -687,6 +794,8 @@ namespace chr {
         this->uniform_point_light_colors.fill(-1);
         this->uniform_point_light_intensities.fill(-1);
         this->uniform_point_light_ranges.fill(-1);
+        this->uniform_tone_scene_color = -1;
+        this->uniform_tone_exposure = -1;
         this->uniform_ssao_g_normal = -1;
         this->uniform_ssao_g_depth = -1;
         this->uniform_ssao_noise_texture = -1;
@@ -755,7 +864,8 @@ namespace chr {
         glBindTexture(GL_TEXTURE_2D, this->texture_ssao);
         glDrawArrays(GL_TRIANGLES, 0, 6);
 
-        bind_default_framebuffer(this->width, this->height);
+        glBindFramebuffer(GL_FRAMEBUFFER, this->hdr_framebuffer);
+        glViewport(0, 0, this->width, this->height);
         glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
@@ -767,9 +877,10 @@ namespace chr {
         glUseProgram(this->lighting_shader_program);
         glUniform1i(this->uniform_g_albedo, 0);
         glUniform1i(this->uniform_g_normal, 1);
-        glUniform1i(this->uniform_g_depth, 2);
-        glUniform1i(this->uniform_shadow_map, 3);
-        glUniform1i(this->uniform_ssao_map, 4);
+        glUniform1i(this->uniform_g_material, 2);
+        glUniform1i(this->uniform_g_depth, 3);
+        glUniform1i(this->uniform_shadow_map, 4);
+        glUniform1i(this->uniform_ssao_map, 5);
         glUniformMatrix4fv(this->uniform_inverse_projection, 1, GL_FALSE, &inverse_projection[0][0]);
         glUniformMatrix4fv(this->uniform_inverse_view, 1, GL_FALSE, &inverse_view[0][0]);
         glUniformMatrix4fv(this->uniform_light_view_projection, 1, GL_FALSE, &light_view_projection[0][0]);
@@ -792,13 +903,24 @@ namespace chr {
         glActiveTexture(GL_TEXTURE1);
         glBindTexture(GL_TEXTURE_2D, this->texture_normal);
         glActiveTexture(GL_TEXTURE2);
-        glBindTexture(GL_TEXTURE_2D, this->texture_depth);
+        glBindTexture(GL_TEXTURE_2D, this->texture_material);
         glActiveTexture(GL_TEXTURE3);
-        glBindTexture(GL_TEXTURE_2D, this->shadow_texture_depth);
+        glBindTexture(GL_TEXTURE_2D, this->texture_depth);
         glActiveTexture(GL_TEXTURE4);
+        glBindTexture(GL_TEXTURE_2D, this->shadow_texture_depth);
+        glActiveTexture(GL_TEXTURE5);
         glBindTexture(GL_TEXTURE_2D, this->texture_ssao_blur);
 
         glBindVertexArray(this->quad_vao);
+        glDrawArrays(GL_TRIANGLES, 0, 6);
+
+        bind_default_framebuffer(this->width, this->height);
+        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+        glUseProgram(this->tone_map_shader_program);
+        glUniform1i(this->uniform_tone_scene_color, 0);
+        glUniform1f(this->uniform_tone_exposure, DEFAULT_EXPOSURE);
+        glActiveTexture(GL_TEXTURE0);
+        glBindTexture(GL_TEXTURE_2D, this->texture_scene_color);
         glDrawArrays(GL_TRIANGLES, 0, 6);
         glEnable(GL_DEPTH_TEST);
         glBindVertexArray(0);
@@ -826,19 +948,22 @@ namespace chr {
     }
 
     void GBufferResources::draw_debug_views() {
-        constexpr int preview_count = 4;
+        constexpr int preview_count = 7;
         const int padding = 16;
-        const int preview_width = this->width / 5;
-        const int preview_height = this->height / 5;
-        const int x = this->width - preview_width - padding;
+        const int preview_width = this->width / 6;
+        const int preview_height = this->height / 6;
+        constexpr int previews_per_column = 4;
 
         const uint32_t preview_textures[preview_count] = {
             this->texture_albedo,
             this->texture_normal,
             this->texture_depth,
-            this->texture_ssao_blur
+            this->texture_ssao_blur,
+            this->texture_material,
+            this->texture_material,
+            this->texture_material
         };
-        const int preview_modes[preview_count] = { 0, 1, 2, 3 };
+        const int preview_modes[preview_count] = { 0, 1, 2, 3, 4, 5, 6 };
 
         glUseProgram(this->debug_shader_program);
         glUniform1i(this->uniform_debug_texture, 0);
@@ -846,7 +971,12 @@ namespace chr {
         glDisable(GL_DEPTH_TEST);
 
         for (int i = 0; i < preview_count; ++i) {
-            const int y = this->height - padding - ((i + 1) * preview_height);
+            const int column = i / previews_per_column;
+            const int row = i % previews_per_column;
+            const int x = this->width - padding -
+                ((2 - column) * preview_width) -
+                ((1 - column) * padding);
+            const int y = this->height - padding - ((row + 1) * preview_height) - (row * padding);
             glViewport(x, y, preview_width, preview_height);
             glUniform1i(this->uniform_debug_mode, preview_modes[i]);
             glActiveTexture(GL_TEXTURE0);

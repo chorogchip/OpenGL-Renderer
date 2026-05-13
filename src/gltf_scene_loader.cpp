@@ -65,13 +65,42 @@ namespace chr {
             const std::filesystem::path& model_dir) {
             SceneRaw::Material out_material{};
 
-            out_material.texture_diffuse = get_texture_image_path(
+            out_material.base_color_factor = glm::vec4(
+                material.pbrData.baseColorFactor[0],
+                material.pbrData.baseColorFactor[1],
+                material.pbrData.baseColorFactor[2],
+                material.pbrData.baseColorFactor[3]);
+            out_material.metallic_factor = material.pbrData.metallicFactor;
+            out_material.roughness_factor = material.pbrData.roughnessFactor;
+            out_material.emissive_factor = glm::vec3(
+                material.emissiveFactor[0],
+                material.emissiveFactor[1],
+                material.emissiveFactor[2]) * material.emissiveStrength;
+            out_material.alpha_cutoff = material.alphaCutoff;
+            out_material.double_sided = material.doubleSided;
+            if (material.normalTexture.has_value()) {
+                out_material.normal_scale = material.normalTexture->scale;
+            }
+            if (material.occlusionTexture.has_value()) {
+                out_material.occlusion_strength = material.occlusionTexture->strength;
+            }
+
+            if (material.alphaMode == fastgltf::AlphaMode::Mask) {
+                out_material.alpha_mode = SceneRaw::Material::AlphaMode::Mask;
+            }
+            else if (material.alphaMode == fastgltf::AlphaMode::Blend) {
+                out_material.alpha_mode = SceneRaw::Material::AlphaMode::Blend;
+            }
+
+            out_material.texture_base_color = get_texture_image_path(
                 asset, model_dir, material.pbrData.baseColorTexture);
+            out_material.texture_diffuse = out_material.texture_base_color;
             out_material.texture_normal = get_texture_image_path(
                 asset, model_dir, material.normalTexture);
-            out_material.texture_roughness = get_texture_image_path(
+            out_material.texture_metallic_roughness = get_texture_image_path(
                 asset, model_dir, material.pbrData.metallicRoughnessTexture);
-            out_material.texture_metallic = out_material.texture_roughness;
+            out_material.texture_roughness = out_material.texture_metallic_roughness;
+            out_material.texture_metallic = out_material.texture_metallic_roughness;
             out_material.texture_occlusion = get_texture_image_path(
                 asset, model_dir, material.occlusionTexture);
             out_material.texture_emissive = get_texture_image_path(
