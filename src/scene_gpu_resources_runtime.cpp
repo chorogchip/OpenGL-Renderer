@@ -66,6 +66,14 @@ namespace {
             GPU_PROGRESS_MATERIAL_WEIGHT * (completed_steps / total_steps);
     }
 
+    static std::string make_texture_cache_key(
+        const std::string& path,
+        const graphics_util::TextureColorSpace color_space) {
+        const char* color_space_name =
+            color_space == graphics_util::TextureColorSpace::Srgb ? "srgb" : "linear";
+        return path + "\n" + color_space_name;
+    }
+
     static bool init_scene_gpu_shaders(chr::SceneGPUResources* resources) {
 
         unsigned shader_program = graphics_util::create_shader_program_from_files(
@@ -150,12 +158,20 @@ namespace {
     }
 
     static bool upload_texture_when_decoded(
+        chr::SceneGPUResources* resources,
         chr::SceneGPUInitState* state,
         const std::string& path,
         const graphics_util::TextureColorSpace color_space,
         uint32_t* texture) {
         if (path.empty()) {
             *texture = 0;
+            return true;
+        }
+
+        const std::string cache_key = make_texture_cache_key(path, color_space);
+        const auto cached_texture = state->texture_cache.find(cache_key);
+        if (cached_texture != state->texture_cache.end()) {
+            *texture = cached_texture->second;
             return true;
         }
 
@@ -179,6 +195,10 @@ namespace {
         graphics_util::TextureImage image = state->pending_texture_decode.get();
         state->pending_texture_path.clear();
         *texture = graphics_util::create_texture_2d(image, color_space);
+        if (*texture != 0) {
+            state->texture_cache[cache_key] = *texture;
+            resources->owned_texture_handles.push_back(*texture);
+        }
         state->message = "Uploading material textures...";
         return true;
     }
@@ -245,6 +265,7 @@ namespace chr {
             const SceneRaw::Material& material_raw = scene_raw.materials[state->material_index];
             if (state->material_texture_step == 0) {
                 if (!upload_texture_when_decoded(
+                    resources,
                     state,
                     material_raw.texture_diffuse,
                     graphics_util::TextureColorSpace::Srgb,
@@ -256,6 +277,7 @@ namespace chr {
             }
             else if (state->material_texture_step == 1) {
                 if (!upload_texture_when_decoded(
+                    resources,
                     state,
                     material_raw.texture_normal,
                     graphics_util::TextureColorSpace::Linear,
@@ -267,6 +289,7 @@ namespace chr {
             }
             else if (state->material_texture_step == 2) {
                 if (!upload_texture_when_decoded(
+                    resources,
                     state,
                     material_raw.texture_alpha_mask,
                     graphics_util::TextureColorSpace::Linear,
@@ -278,6 +301,7 @@ namespace chr {
             }
             else if (state->material_texture_step == 3) {
                 if (!upload_texture_when_decoded(
+                    resources,
                     state,
                     material_raw.texture_metallic_roughness,
                     graphics_util::TextureColorSpace::Linear,
@@ -289,6 +313,7 @@ namespace chr {
             }
             else if (state->material_texture_step == 4) {
                 if (!upload_texture_when_decoded(
+                    resources,
                     state,
                     material_raw.texture_occlusion,
                     graphics_util::TextureColorSpace::Linear,
@@ -300,6 +325,7 @@ namespace chr {
             }
             else if (state->material_texture_step == 5) {
                 if (!upload_texture_when_decoded(
+                    resources,
                     state,
                     material_raw.texture_emissive,
                     graphics_util::TextureColorSpace::Srgb,
@@ -382,45 +408,13 @@ namespace chr {
         }
         resources->meshes.clear();
 
-        for (const auto& material : resources->materials) {
-            if (material.texture_diffuse != 0 &&
-                material.texture_diffuse != resources->fallback_texture_diffuse) {
-                glDeleteTextures(1, &material.texture_diffuse);
-            }
-            if (material.texture_normal != 0 &&
-                material.texture_normal != resources->fallback_texture_normal &&
-                material.texture_normal != material.texture_diffuse &&
-                material.texture_normal != material.texture_alpha_mask) {
-                glDeleteTextures(1, &material.texture_normal);
-            }
-            if (material.texture_alpha_mask != 0 &&
-                material.texture_alpha_mask != resources->fallback_texture_diffuse &&
-                material.texture_alpha_mask != material.texture_diffuse) {
-                glDeleteTextures(1, &material.texture_alpha_mask);
-            }
-            if (material.texture_metallic_roughness != 0 &&
-                material.texture_metallic_roughness != resources->fallback_texture_diffuse &&
-                material.texture_metallic_roughness != material.texture_diffuse &&
-                material.texture_metallic_roughness != material.texture_alpha_mask) {
-                glDeleteTextures(1, &material.texture_metallic_roughness);
-            }
-            if (material.texture_occlusion != 0 &&
-                material.texture_occlusion != resources->fallback_texture_diffuse &&
-                material.texture_occlusion != material.texture_diffuse &&
-                material.texture_occlusion != material.texture_alpha_mask &&
-                material.texture_occlusion != material.texture_metallic_roughness) {
-                glDeleteTextures(1, &material.texture_occlusion);
-            }
-            if (material.texture_emissive != 0 &&
-                material.texture_emissive != resources->fallback_texture_black &&
-                material.texture_emissive != material.texture_diffuse &&
-                material.texture_emissive != material.texture_alpha_mask &&
-                material.texture_emissive != material.texture_metallic_roughness &&
-                material.texture_emissive != material.texture_occlusion) {
-                glDeleteTextures(1, &material.texture_emissive);
+        resources->materials.clear();
+        for (const uint32_t texture : resources->owned_texture_handles) {
+            if (texture != 0) {
+                glDeleteTextures(1, &texture);
             }
         }
-        resources->materials.clear();
+        resources->owned_texture_handles.clear();
 
         if (resources->fallback_texture_diffuse != 0) {
             glDeleteTextures(1, &resources->fallback_texture_diffuse);

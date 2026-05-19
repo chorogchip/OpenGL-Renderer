@@ -42,6 +42,7 @@ namespace chr {
         };
         std::vector<Mesh> meshes;
         std::vector<Material> materials;
+        std::vector<uint32_t> owned_texture_handles;
 
         uint32_t shader_program = 0;
         uint32_t shadow_shader_program = 0;

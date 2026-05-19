@@ -4,6 +4,7 @@
 #include <cstddef>
 #include <future>
 #include <string>
+#include <unordered_map>
 
 #include "graphics_util.h"
 #include "scene_gpu_resources.h"
@@ -28,6 +29,7 @@ namespace chr {
         std::size_t material_texture_step = 0;
         std::future<graphics_util::TextureImage> pending_texture_decode;
         std::string pending_texture_path;
+        std::unordered_map<std::string, uint32_t> texture_cache;
         uint32_t pending_texture_diffuse = 0;
         uint32_t pending_texture_normal = 0;
         uint32_t pending_texture_alpha_mask = 0;
