@@ -254,7 +254,7 @@ namespace chr {
             glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
             glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
             render_scene_gpu_resources(*scene_gpu_resources, draw_params);
-            renderer->draw_lighting_pass(draw_params.mat_projection, draw_params.mat_view);
+            renderer->draw_lit_frame(draw_params.mat_projection, draw_params.mat_view);
             if (show_light_markers) {
                 renderer->draw_light_markers(draw_params.mat_projection, draw_params.mat_view);
             }
@@ -265,7 +265,11 @@ namespace chr {
             overlay_stats.fps = delta_time > 0.0f ? 1.0 / static_cast<double>(delta_time) : 0.0;
             overlay_stats.cpu_frame_ms = previous_cpu_frame_ms;
             overlay_stats.frame_index = frames;
-            imgui_layer::draw_overlay(&show_debug_views, &show_light_markers, overlay_stats);
+            imgui_layer::draw_overlay(
+                &show_debug_views,
+                &show_light_markers,
+                &renderer->tone_mapping_pass.exposure,
+                overlay_stats);
             imgui_layer::end_frame();
 
             glfwSwapBuffers(window);

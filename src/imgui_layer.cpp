@@ -47,12 +47,14 @@ namespace imgui_layer {
     void draw_overlay(
         bool* show_debug_views,
         bool* show_light_markers,
+        float* exposure,
         const RendererOverlayStats& stats) {
         ImGui::Begin("Renderer");
         ImGui::Text("Render Controls");
         ImGui::Separator();
         ImGui::Checkbox("Debug G-buffer Views", show_debug_views);
         ImGui::Checkbox("Point Light Markers", show_light_markers);
+        ImGui::SliderFloat("Exposure", exposure, 0.1f, 5.0f, "%.2f");
         ImGui::Separator();
         ImGui::Text("Frame: %llu", static_cast<unsigned long long>(stats.frame_index));
         ImGui::Text("FPS: %.1f", stats.fps);

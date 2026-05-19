@@ -139,7 +139,7 @@ namespace chr {
         this->shadow_pass.bind();
     }
 
-    void Renderer::draw_lighting_pass(const glm::mat4& mat_projection, const glm::mat4& mat_view) {
+    void Renderer::draw_lit_frame(const glm::mat4& mat_projection, const glm::mat4& mat_view) {
         this->ssao_pass.render(
             this->g_buffer_pass.texture_normal,
             this->g_buffer_pass.texture_depth,

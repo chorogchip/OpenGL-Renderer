@@ -25,6 +25,7 @@ namespace imgui_layer {
     void draw_overlay(
         bool* show_debug_views,
         bool* show_light_markers,
+        float* exposure,
         const RendererOverlayStats& stats);
     void end_frame();
 }
