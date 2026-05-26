@@ -95,6 +95,8 @@ namespace chr {
         }
         this->debug_environment_texture = this->skybox_pass.equirectangular_texture;
         this->debug_irradiance_texture = this->skybox_pass.irradiance_cubemap;
+        this->debug_prefilter_texture = this->skybox_pass.prefiltered_environment_cubemap;
+        this->debug_brdf_lut_texture = this->skybox_pass.brdf_lut_texture;
         return 0;
     }
 
