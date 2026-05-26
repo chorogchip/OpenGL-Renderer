@@ -16,8 +16,7 @@ namespace {
     bool g_toggle_light_markers_requested = false;
     bool g_prev_p_pressed = false;
     bool g_prev_o_pressed = false;
-    bool g_is_dragging = false;
-    bool g_has_drag_origin = false;
+    bool g_has_mouse_origin = false;
     double g_last_mouse_x = 0.0;
     double g_last_mouse_y = 0.0;
 
@@ -28,18 +27,14 @@ namespace {
     void cursor_position_callback(GLFWwindow* window, double xpos, double ypos) {
         (void)window;
 
-        if (ImGui::GetCurrentContext() != nullptr && ImGui::GetIO().WantCaptureMouse) {
+        if (g_camera == nullptr) {
             return;
         }
 
-        if (g_camera == nullptr || !g_is_dragging) {
-            return;
-        }
-
-        if (!g_has_drag_origin) {
+        if (!g_has_mouse_origin) {
             g_last_mouse_x = xpos;
             g_last_mouse_y = ypos;
-            g_has_drag_origin = true;
+            g_has_mouse_origin = true;
             return;
         }
 
@@ -51,27 +46,9 @@ namespace {
         g_camera->move_rotation(delta_x * MOUSE_SENSITIVITY, delta_y * MOUSE_SENSITIVITY);
     }
 
-    void mouse_button_callback(GLFWwindow* window, int button, int action, int mods) {
-        (void)window;
-        (void)mods;
-
-        if (button != GLFW_MOUSE_BUTTON_LEFT) {
-            return;
-        }
-
-        if (ImGui::GetCurrentContext() != nullptr && ImGui::GetIO().WantCaptureMouse) {
-            g_is_dragging = false;
-            g_has_drag_origin = false;
-            return;
-        }
-
-        if (action == GLFW_PRESS) {
-            g_is_dragging = true;
-            g_has_drag_origin = false;
-        } else if (action == GLFW_RELEASE) {
-            g_is_dragging = false;
-            g_has_drag_origin = false;
-        }
+    void window_focus_callback(GLFWwindow* window, int focused) {
+        g_has_mouse_origin = false;
+        glfwSetInputMode(window, GLFW_CURSOR, focused ? GLFW_CURSOR_DISABLED : GLFW_CURSOR_NORMAL);
     }
 }
 
@@ -86,12 +63,15 @@ namespace app_input {
         g_toggle_light_markers_requested = false;
         g_prev_p_pressed = false;
         g_prev_o_pressed = false;
-        g_is_dragging = false;
-        g_has_drag_origin = false;
+        g_has_mouse_origin = false;
 
         glfwSetFramebufferSizeCallback(window, framebuffer_size_callback);
         glfwSetCursorPosCallback(window, cursor_position_callback);
-        glfwSetMouseButtonCallback(window, mouse_button_callback);
+        glfwSetWindowFocusCallback(window, window_focus_callback);
+        glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
+        if (glfwRawMouseMotionSupported()) {
+            glfwSetInputMode(window, GLFW_RAW_MOUSE_MOTION, GLFW_TRUE);
+        }
     }
 
     void process_input(GLFWwindow* window) {
