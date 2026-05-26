@@ -2,12 +2,26 @@
 
 #include <GLFW/glfw3.h>
 
+#include "debug_preview_pass.h"
+
 #include <imgui.h>
 #include <imgui_impl_glfw.h>
 #include <imgui_impl_opengl3.h>
 
 namespace {
     constexpr const char* IMGUI_GLSL_VERSION = "#version 330";
+    constexpr const char* DEBUG_VIEW_LABELS[] = {
+        "Final",
+        "Albedo",
+        "Normal",
+        "Depth",
+        "SSAO",
+        "Metallic",
+        "Roughness",
+        "AO",
+        "Emissive",
+        "Environment"
+    };
 }
 
 namespace imgui_layer {
@@ -45,14 +59,21 @@ namespace imgui_layer {
     }
 
     void draw_overlay(
-        bool* show_debug_views,
+        chr::DebugViewMode* debug_view_mode,
         bool* show_light_markers,
         float* exposure,
         const RendererOverlayStats& stats) {
         ImGui::Begin("Renderer");
         ImGui::Text("Render Controls");
         ImGui::Separator();
-        ImGui::Checkbox("Debug G-buffer Views", show_debug_views);
+        int current_debug_view = static_cast<int>(*debug_view_mode);
+        if (ImGui::Combo(
+            "Debug View",
+            &current_debug_view,
+            DEBUG_VIEW_LABELS,
+            static_cast<int>(chr::DebugViewMode::Count))) {
+            *debug_view_mode = static_cast<chr::DebugViewMode>(current_debug_view);
+        }
         ImGui::Checkbox("Point Light Markers", show_light_markers);
         ImGui::SliderFloat("Exposure", exposure, 0.1f, 5.0f, "%.2f");
         ImGui::Separator();
@@ -70,7 +91,8 @@ namespace imgui_layer {
         ImGui::Separator();
         ImGui::TextUnformatted("W/A/S/D: move");
         ImGui::TextUnformatted("Left drag: rotate camera");
-        ImGui::TextUnformatted("P/O: keyboard toggles");
+        ImGui::TextUnformatted("P: cycle debug view");
+        ImGui::TextUnformatted("O: toggle light markers");
         ImGui::End();
     }
 

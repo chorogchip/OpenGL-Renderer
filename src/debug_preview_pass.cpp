@@ -37,48 +37,56 @@ namespace chr {
 
     void DebugPreviewPass::render(
         const DebugPreviewTextures& textures,
+        DebugViewMode mode,
         uint32_t fullscreen_quad_vao,
         int width,
         int height) {
-        constexpr int preview_count = 7;
-        const int padding = 16;
-        const int preview_width = width / 6;
-        const int preview_height = height / 6;
-        constexpr int previews_per_column = 4;
+        if (mode == DebugViewMode::Final) {
+            return;
+        }
 
-        const uint32_t preview_textures[preview_count] = {
-            textures.albedo,
-            textures.normal,
-            textures.depth,
-            textures.ssao,
-            textures.material,
-            textures.material,
-            textures.material
-        };
-        const int preview_modes[preview_count] = { 0, 1, 2, 3, 4, 5, 6 };
+        uint32_t preview_texture = 0;
+        switch (mode) {
+        case DebugViewMode::Albedo:
+            preview_texture = textures.albedo;
+            break;
+        case DebugViewMode::Normal:
+            preview_texture = textures.normal;
+            break;
+        case DebugViewMode::Depth:
+            preview_texture = textures.depth;
+            break;
+        case DebugViewMode::Ssao:
+            preview_texture = textures.ssao;
+            break;
+        case DebugViewMode::Metallic:
+        case DebugViewMode::Roughness:
+        case DebugViewMode::Ao:
+            preview_texture = textures.material;
+            break;
+        case DebugViewMode::Emissive:
+            preview_texture = textures.emissive;
+            break;
+        case DebugViewMode::Environment:
+            preview_texture = textures.environment;
+            break;
+        case DebugViewMode::Final:
+        case DebugViewMode::Count:
+            return;
+        }
 
         glUseProgram(shader_program);
         glUniform1i(uniform_texture, 0);
         glBindVertexArray(fullscreen_quad_vao);
         glDisable(GL_DEPTH_TEST);
-
-        for (int i = 0; i < preview_count; ++i) {
-            const int column = i / previews_per_column;
-            const int row = i % previews_per_column;
-            const int x = width - padding -
-                ((2 - column) * preview_width) -
-                ((1 - column) * padding);
-            const int y = height - padding - ((row + 1) * preview_height) - (row * padding);
-            glViewport(x, y, preview_width, preview_height);
-            glUniform1i(uniform_mode, preview_modes[i]);
-            glActiveTexture(GL_TEXTURE0);
-            glBindTexture(GL_TEXTURE_2D, preview_textures[i]);
-            glDrawArrays(GL_TRIANGLES, 0, 6);
-        }
+        glViewport(0, 0, width, height);
+        glUniform1i(uniform_mode, static_cast<int>(mode));
+        glActiveTexture(GL_TEXTURE0);
+        glBindTexture(GL_TEXTURE_2D, preview_texture);
+        glDrawArrays(GL_TRIANGLES, 0, 6);
 
         glEnable(GL_DEPTH_TEST);
         glBindVertexArray(0);
-        glViewport(0, 0, width, height);
     }
 
 }

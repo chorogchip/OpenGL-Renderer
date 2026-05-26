@@ -193,7 +193,7 @@ namespace chr {
         Renderer* renderer,
         SceneGPUResources* scene_gpu_resources,
         imgui_layer::RendererOverlayStats overlay_stats) {
-        bool show_debug_views = false;
+        DebugViewMode debug_view_mode = DebugViewMode::Final;
         bool show_light_markers = true;
         int framebuffer_width = renderer->width;
         int framebuffer_height = renderer->height;
@@ -212,7 +212,9 @@ namespace chr {
             last_time = cur_time;
             app_input::process_input(window);
             if (app_input::consume_toggle_debug_views_requested()) {
-                show_debug_views = !show_debug_views;
+                const int next_debug_view =
+                    (static_cast<int>(debug_view_mode) + 1) % static_cast<int>(DebugViewMode::Count);
+                debug_view_mode = static_cast<DebugViewMode>(next_debug_view);
             }
             if (app_input::consume_toggle_light_markers_requested()) {
                 show_light_markers = !show_light_markers;
@@ -258,15 +260,15 @@ namespace chr {
             if (show_light_markers) {
                 renderer->draw_light_markers(draw_params.mat_projection, draw_params.mat_view);
             }
-            if (show_debug_views) {
-                renderer->draw_debug_views();
+            if (debug_view_mode != DebugViewMode::Final) {
+                renderer->draw_debug_view(debug_view_mode);
             }
 
             overlay_stats.fps = delta_time > 0.0f ? 1.0 / static_cast<double>(delta_time) : 0.0;
             overlay_stats.cpu_frame_ms = previous_cpu_frame_ms;
             overlay_stats.frame_index = frames;
             imgui_layer::draw_overlay(
-                &show_debug_views,
+                &debug_view_mode,
                 &show_light_markers,
                 &renderer->tone_mapping_pass.exposure,
                 overlay_stats);

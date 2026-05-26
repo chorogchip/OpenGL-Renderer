@@ -37,7 +37,7 @@ namespace chr {
         void bind_for_geometry_pass();
         void draw_lit_frame(const glm::mat4& mat_projection, const glm::mat4& mat_view);
         void draw_light_markers(const glm::mat4& mat_projection, const glm::mat4& mat_view);
-        void draw_debug_views();
+        void draw_debug_view(DebugViewMode mode);
         static void bind_default_framebuffer(int width, int height);
     };
 

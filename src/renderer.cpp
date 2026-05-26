@@ -181,7 +181,7 @@ namespace chr {
             this->height);
     }
 
-    void Renderer::draw_debug_views() {
+    void Renderer::draw_debug_view(DebugViewMode mode) {
         DebugPreviewTextures preview_textures{};
         preview_textures.albedo = this->g_buffer_pass.texture_albedo;
         preview_textures.normal = this->g_buffer_pass.texture_normal;
@@ -190,6 +190,7 @@ namespace chr {
         preview_textures.material = this->g_buffer_pass.texture_material;
         this->debug_preview_pass.render(
             preview_textures,
+            mode,
             this->fullscreen_quad.vao,
             this->width,
             this->height);

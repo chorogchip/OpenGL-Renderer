@@ -5,6 +5,10 @@
 
 struct GLFWwindow;
 
+namespace chr {
+    enum class DebugViewMode : int;
+}
+
 namespace imgui_layer {
     struct RendererOverlayStats {
         const char* scene_path = nullptr;
@@ -23,7 +27,7 @@ namespace imgui_layer {
     void shutdown();
     void begin_frame();
     void draw_overlay(
-        bool* show_debug_views,
+        chr::DebugViewMode* debug_view_mode,
         bool* show_light_markers,
         float* exposure,
         const RendererOverlayStats& stats);
