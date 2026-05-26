@@ -7,6 +7,7 @@ in vec2 TexCoord;
 uniform sampler2D gAlbedo;
 uniform sampler2D gNormal;
 uniform sampler2D gMaterial;
+uniform sampler2D gEmissive;
 uniform sampler2D gDepth;
 uniform sampler2D uShadowMap;
 uniform sampler2D uSsaoMap;
@@ -120,6 +121,7 @@ void main() {
     vec4 albedo = texture(gAlbedo, TexCoord);
     vec3 normal = normalize(texture(gNormal, TexCoord).rgb);
     vec4 material = texture(gMaterial, TexCoord);
+    vec3 emissive = texture(gEmissive, TexCoord).rgb;
     float metallic = clamp(material.r, 0.0, 1.0);
     float roughness = clamp(material.g, 0.04, 1.0);
     float depth = texture(gDepth, TexCoord).r;
@@ -162,7 +164,7 @@ void main() {
             roughness);
     }
 
-    vec3 lit_color = ambient + directional + point_light_sum;
+    vec3 lit_color = ambient + directional + point_light_sum + emissive;
 
     FragColor = vec4(lit_color, albedo.a);
 }

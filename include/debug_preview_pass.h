@@ -25,6 +25,7 @@ namespace chr {
         uint32_t ssao = 0;
         uint32_t material = 0;
         uint32_t emissive = 0;
+        uint32_t emissive = 0;
         uint32_t environment = 0;
     };
 
@@ -44,3 +45,4 @@ namespace chr {
     };
 
 }
+

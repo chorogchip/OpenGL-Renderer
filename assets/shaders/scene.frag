@@ -3,6 +3,7 @@
 layout (location = 0) out vec4 GAlbedo;
 layout (location = 1) out vec3 GNormal;
 layout (location = 2) out vec4 GMaterial;
+layout (location = 3) out vec3 GEmissive;
 
 in vec2 TexCoord;
 in vec3 Normal;
@@ -48,8 +49,10 @@ void main() {
     float roughness = clamp(metallic_roughness.g * uRoughnessFactor, 0.04, 1.0);
     float metallic = clamp(metallic_roughness.b * uMetallicFactor, 0.0, 1.0);
     float occlusion = mix(1.0, texture(uOcclusionTexture, TexCoord).r, uOcclusionStrength);
+    vec3 emissive = texture(uEmissiveTexture, TexCoord).rgb * uEmissiveFactor;
 
     GAlbedo = albedo;
     GNormal = final_normal;
     GMaterial = vec4(metallic, roughness, occlusion, albedo.a);
+    GEmissive = emissive;
 }

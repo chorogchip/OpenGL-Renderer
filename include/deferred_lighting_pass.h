@@ -14,6 +14,7 @@ namespace chr {
         uint32_t texture_albedo = 0;
         uint32_t texture_normal = 0;
         uint32_t texture_material = 0;
+        uint32_t texture_emissive = 0;
         uint32_t texture_depth = 0;
         uint32_t texture_shadow_depth = 0;
         uint32_t texture_ssao = 0;
@@ -31,6 +32,7 @@ namespace chr {
         int uniform_g_albedo = -1;
         int uniform_g_normal = -1;
         int uniform_g_material = -1;
+        int uniform_g_emissive = -1;
         int uniform_g_depth = -1;
         int uniform_shadow_map = -1;
         int uniform_ssao_map = -1;

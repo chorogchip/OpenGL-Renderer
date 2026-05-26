@@ -22,7 +22,12 @@ void main() {
     }
 
     if (uMode == 3) {
-        float depth = sample_value.r;
+        if (uMode == 7) {
+        FragColor = vec4(sample_value.rgb, 1.0);
+        return;
+    }
+
+    float depth = sample_value.r;
         float visual_depth = 1.0 - depth;
         FragColor = vec4(vec3(visual_depth), 1.0);
         return;
@@ -61,3 +66,4 @@ void main() {
 
     FragColor = vec4(sample_value.rgb, 1.0);
 }
+

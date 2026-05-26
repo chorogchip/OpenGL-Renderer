@@ -31,6 +31,7 @@ namespace chr {
         uniform_g_albedo = glGetUniformLocation(shader_program, "gAlbedo");
         uniform_g_normal = glGetUniformLocation(shader_program, "gNormal");
         uniform_g_material = glGetUniformLocation(shader_program, "gMaterial");
+        uniform_g_emissive = glGetUniformLocation(shader_program, "gEmissive");
         uniform_g_depth = glGetUniformLocation(shader_program, "gDepth");
         uniform_shadow_map = glGetUniformLocation(shader_program, "uShadowMap");
         uniform_ssao_map = glGetUniformLocation(shader_program, "uSsaoMap");
@@ -67,6 +68,7 @@ namespace chr {
         uniform_g_albedo = -1;
         uniform_g_normal = -1;
         uniform_g_material = -1;
+        uniform_g_emissive = -1;
         uniform_g_depth = -1;
         uniform_shadow_map = -1;
         uniform_ssao_map = -1;
@@ -102,6 +104,7 @@ namespace chr {
         glUniform1i(uniform_g_depth, 3);
         glUniform1i(uniform_shadow_map, 4);
         glUniform1i(uniform_ssao_map, 5);
+        glUniform1i(uniform_g_emissive, 6);
         glUniformMatrix4fv(uniform_inverse_projection, 1, GL_FALSE, &inverse_projection[0][0]);
         glUniformMatrix4fv(uniform_inverse_view, 1, GL_FALSE, &inverse_view[0][0]);
         glUniformMatrix4fv(uniform_light_view_projection, 1, GL_FALSE, &inputs.mat_light_view_projection[0][0]);
@@ -132,6 +135,8 @@ namespace chr {
         glBindTexture(GL_TEXTURE_2D, inputs.texture_shadow_depth);
         glActiveTexture(GL_TEXTURE5);
         glBindTexture(GL_TEXTURE_2D, inputs.texture_ssao);
+        glActiveTexture(GL_TEXTURE6);
+        glBindTexture(GL_TEXTURE_2D, inputs.texture_emissive);
 
         glBindVertexArray(inputs.fullscreen_quad_vao);
         glDrawArrays(GL_TRIANGLES, 0, 6);

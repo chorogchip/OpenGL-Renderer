@@ -151,6 +151,7 @@ namespace chr {
         lighting_inputs.texture_albedo = this->g_buffer_pass.texture_albedo;
         lighting_inputs.texture_normal = this->g_buffer_pass.texture_normal;
         lighting_inputs.texture_material = this->g_buffer_pass.texture_material;
+        lighting_inputs.texture_emissive = this->g_buffer_pass.texture_emissive;
         lighting_inputs.texture_depth = this->g_buffer_pass.texture_depth;
         lighting_inputs.texture_shadow_depth = this->shadow_pass.depth_texture();
         lighting_inputs.texture_ssao = this->ssao_pass.blurred_texture();
@@ -188,6 +189,7 @@ namespace chr {
         preview_textures.depth = this->g_buffer_pass.texture_depth;
         preview_textures.ssao = this->ssao_pass.blurred_texture();
         preview_textures.material = this->g_buffer_pass.texture_material;
+        preview_textures.emissive = this->g_buffer_pass.texture_emissive;
         this->debug_preview_pass.render(
             preview_textures,
             mode,
@@ -202,3 +204,4 @@ namespace chr {
     }
 
 }
+

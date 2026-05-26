@@ -44,6 +44,15 @@ namespace chr {
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
         glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT2, GL_TEXTURE_2D, texture_material, 0);
 
+        glGenTextures(1, &texture_emissive);
+        glBindTexture(GL_TEXTURE_2D, texture_emissive);
+        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB16F, width, height, 0, GL_RGB, GL_FLOAT, nullptr);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+        glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT3, GL_TEXTURE_2D, texture_emissive, 0);
+
         glGenTextures(1, &texture_depth);
         glBindTexture(GL_TEXTURE_2D, texture_depth);
         glTexImage2D(
@@ -58,9 +67,10 @@ namespace chr {
         constexpr GLenum draw_buffers[] = {
             GL_COLOR_ATTACHMENT0,
             GL_COLOR_ATTACHMENT1,
-            GL_COLOR_ATTACHMENT2
+            GL_COLOR_ATTACHMENT2,
+            GL_COLOR_ATTACHMENT3
         };
-        glDrawBuffers(3, draw_buffers);
+        glDrawBuffers(4, draw_buffers);
 
         if (glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE) {
             std::cout << "Err: G-buffer framebuffer is incomplete." << std::endl;
@@ -93,6 +103,10 @@ namespace chr {
         if (texture_material != 0) {
             glDeleteTextures(1, &texture_material);
             texture_material = 0;
+        }
+        if (texture_emissive != 0) {
+            glDeleteTextures(1, &texture_emissive);
+            texture_emissive = 0;
         }
         if (texture_albedo != 0) {
             glDeleteTextures(1, &texture_albedo);
