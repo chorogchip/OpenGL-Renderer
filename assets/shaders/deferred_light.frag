@@ -12,6 +12,8 @@ uniform sampler2D gDepth;
 uniform sampler2D uShadowMap;
 uniform sampler2D uSsaoMap;
 uniform samplerCube uIrradianceMap;
+uniform samplerCube uPrefilterMap;
+uniform sampler2D uBrdfLut;
 uniform mat4 uInverseProjection;
 uniform mat4 uInverseView;
 uniform mat4 uLightViewProjection;
@@ -20,6 +22,7 @@ uniform vec3 uLightColor;
 uniform float uAmbientStrength;
 uniform float uDiffuseStrength;
 uniform int uHasIrradianceMap;
+uniform int uHasSpecularIbl;
 uniform int uPointLightCount;
 uniform vec3 uPointLightPositions[5];
 uniform vec3 uPointLightColors[5];
@@ -27,6 +30,7 @@ uniform float uPointLightIntensities[5];
 uniform float uPointLightRanges[5];
 
 const float PI = 3.14159265359;
+const float MAX_REFLECTION_LOD = 4.0;
 
 vec3 reconstruct_view_position(vec2 uv, float depth) {
     vec4 clip_pos = vec4(uv * 2.0 - 1.0, depth * 2.0 - 1.0, 1.0);
@@ -90,6 +94,11 @@ vec3 fresnel_schlick(float cos_theta, vec3 f0) {
     return f0 + (1.0 - f0) * pow(clamp(1.0 - cos_theta, 0.0, 1.0), 5.0);
 }
 
+vec3 fresnel_schlick_roughness(float cos_theta, vec3 f0, float roughness) {
+    return f0 + (max(vec3(1.0 - roughness), f0) - f0) *
+        pow(clamp(1.0 - cos_theta, 0.0, 1.0), 5.0);
+}
+
 vec3 calculate_pbr_light(
     vec3 albedo,
     vec3 normal,
@@ -134,14 +143,31 @@ void main() {
 
     vec3 view_pos = reconstruct_view_position(TexCoord, depth);
     vec3 view_dir = normalize(-view_pos);
+    vec3 world_normal = normalize(mat3(uInverseView) * normal);
+    vec3 world_view_dir = normalize(mat3(uInverseView) * view_dir);
     vec3 light_dir = normalize(-uLightDirection);
     float directional_shadow = calculate_directional_shadow(view_pos, normal);
 
     vec3 ambient = ambient_occlusion * uAmbientStrength * albedo.rgb;
     if (uHasIrradianceMap != 0) {
-        vec3 world_normal = normalize(mat3(uInverseView) * normal);
         vec3 irradiance = texture(uIrradianceMap, world_normal).rgb;
         ambient += ambient_occlusion * irradiance * albedo.rgb * (1.0 - metallic);
+    }
+    if (uHasSpecularIbl != 0) {
+        vec3 f0 = mix(vec3(0.04), albedo.rgb, metallic);
+        vec3 fresnel = fresnel_schlick_roughness(
+            max(dot(world_normal, world_view_dir), 0.0),
+            f0,
+            roughness);
+        vec3 reflection_dir = reflect(-world_view_dir, world_normal);
+        vec3 prefiltered_color = textureLod(
+            uPrefilterMap,
+            reflection_dir,
+            roughness * MAX_REFLECTION_LOD).rgb;
+        vec2 brdf = texture(
+            uBrdfLut,
+            vec2(max(dot(world_normal, world_view_dir), 0.0), roughness)).rg;
+        ambient += ambient_occlusion * prefiltered_color * (fresnel * brdf.x + brdf.y);
     }
     vec3 directional = (1.0 - directional_shadow) * calculate_pbr_light(
         albedo.rgb,

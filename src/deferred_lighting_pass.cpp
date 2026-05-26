@@ -34,6 +34,9 @@ namespace chr {
         uniform_g_emissive = glGetUniformLocation(shader_program, "gEmissive");
         uniform_irradiance_map = glGetUniformLocation(shader_program, "uIrradianceMap");
         uniform_has_irradiance_map = glGetUniformLocation(shader_program, "uHasIrradianceMap");
+        uniform_prefilter_map = glGetUniformLocation(shader_program, "uPrefilterMap");
+        uniform_brdf_lut = glGetUniformLocation(shader_program, "uBrdfLut");
+        uniform_has_specular_ibl = glGetUniformLocation(shader_program, "uHasSpecularIbl");
         uniform_g_depth = glGetUniformLocation(shader_program, "gDepth");
         uniform_shadow_map = glGetUniformLocation(shader_program, "uShadowMap");
         uniform_ssao_map = glGetUniformLocation(shader_program, "uSsaoMap");
@@ -73,6 +76,9 @@ namespace chr {
         uniform_g_emissive = -1;
         uniform_irradiance_map = -1;
         uniform_has_irradiance_map = -1;
+        uniform_prefilter_map = -1;
+        uniform_brdf_lut = -1;
+        uniform_has_specular_ibl = -1;
         uniform_g_depth = -1;
         uniform_shadow_map = -1;
         uniform_ssao_map = -1;
@@ -112,7 +118,12 @@ namespace chr {
         glUniform1i(uniform_ssao_map, 5);
         glUniform1i(uniform_g_emissive, 6);
         glUniform1i(uniform_irradiance_map, 7);
+        glUniform1i(uniform_prefilter_map, 8);
+        glUniform1i(uniform_brdf_lut, 9);
         glUniform1i(uniform_has_irradiance_map, inputs.texture_irradiance != 0 ? 1 : 0);
+        glUniform1i(
+            uniform_has_specular_ibl,
+            inputs.texture_prefiltered_environment != 0 && inputs.texture_brdf_lut != 0 ? 1 : 0);
         glUniformMatrix4fv(uniform_inverse_projection, 1, GL_FALSE, &inverse_projection[0][0]);
         glUniformMatrix4fv(uniform_inverse_view, 1, GL_FALSE, &inverse_view[0][0]);
         glUniformMatrix4fv(uniform_light_view_projection, 1, GL_FALSE, &inputs.mat_light_view_projection[0][0]);
@@ -147,6 +158,10 @@ namespace chr {
         glBindTexture(GL_TEXTURE_2D, inputs.texture_emissive);
         glActiveTexture(GL_TEXTURE7);
         glBindTexture(GL_TEXTURE_CUBE_MAP, inputs.texture_irradiance);
+        glActiveTexture(GL_TEXTURE8);
+        glBindTexture(GL_TEXTURE_CUBE_MAP, inputs.texture_prefiltered_environment);
+        glActiveTexture(GL_TEXTURE9);
+        glBindTexture(GL_TEXTURE_2D, inputs.texture_brdf_lut);
 
         glBindVertexArray(inputs.fullscreen_quad_vao);
         glDrawArrays(GL_TRIANGLES, 0, 6);

@@ -16,6 +16,8 @@ namespace chr {
         uint32_t texture_material = 0;
         uint32_t texture_emissive = 0;
         uint32_t texture_irradiance = 0;
+        uint32_t texture_prefiltered_environment = 0;
+        uint32_t texture_brdf_lut = 0;
         uint32_t texture_depth = 0;
         uint32_t texture_shadow_depth = 0;
         uint32_t texture_ssao = 0;
@@ -37,6 +39,9 @@ namespace chr {
         int uniform_g_emissive = -1;
         int uniform_irradiance_map = -1;
         int uniform_has_irradiance_map = -1;
+        int uniform_prefilter_map = -1;
+        int uniform_brdf_lut = -1;
+        int uniform_has_specular_ibl = -1;
         int uniform_g_depth = -1;
         int uniform_shadow_map = -1;
         int uniform_ssao_map = -1;

@@ -176,6 +176,8 @@ namespace chr {
         lighting_inputs.texture_material = this->g_buffer_pass.texture_material;
         lighting_inputs.texture_emissive = this->g_buffer_pass.texture_emissive;
         lighting_inputs.texture_irradiance = this->skybox_pass.irradiance_cubemap;
+        lighting_inputs.texture_prefiltered_environment = this->skybox_pass.prefiltered_environment_cubemap;
+        lighting_inputs.texture_brdf_lut = this->skybox_pass.brdf_lut_texture;
         lighting_inputs.texture_depth = this->g_buffer_pass.texture_depth;
         lighting_inputs.texture_shadow_depth = this->shadow_pass.depth_texture();
         lighting_inputs.texture_ssao = this->ssao_pass.blurred_texture();
