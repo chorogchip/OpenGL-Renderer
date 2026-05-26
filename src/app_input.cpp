@@ -8,12 +8,14 @@
 #include "camera.h"
 
 namespace {
-    constexpr float CAMERA_MOVE_SPEED = 0.25f;
+    constexpr float CAMERA_MOVE_SPEED = 15.0f;
     constexpr float MOUSE_SENSITIVITY = 0.08f;
 
     chr::Camera* g_camera = nullptr;
     bool g_toggle_debug_views_requested = false;
     bool g_toggle_light_markers_requested = false;
+    bool g_mouse_captured = false;
+    bool g_prev_escape_pressed = false;
     bool g_prev_p_pressed = false;
     bool g_prev_o_pressed = false;
     bool g_has_mouse_origin = false;
@@ -24,10 +26,16 @@ namespace {
         glViewport(0, 0, width, height);
     }
 
+    void set_mouse_captured(GLFWwindow* window, const bool captured) {
+        g_mouse_captured = captured;
+        g_has_mouse_origin = false;
+        glfwSetInputMode(window, GLFW_CURSOR, captured ? GLFW_CURSOR_DISABLED : GLFW_CURSOR_NORMAL);
+    }
+
     void cursor_position_callback(GLFWwindow* window, double xpos, double ypos) {
         (void)window;
 
-        if (g_camera == nullptr) {
+        if (g_camera == nullptr || !g_mouse_captured) {
             return;
         }
 
@@ -47,8 +55,23 @@ namespace {
     }
 
     void window_focus_callback(GLFWwindow* window, int focused) {
-        g_has_mouse_origin = false;
-        glfwSetInputMode(window, GLFW_CURSOR, focused ? GLFW_CURSOR_DISABLED : GLFW_CURSOR_NORMAL);
+        if (!focused) {
+            set_mouse_captured(window, false);
+        }
+    }
+
+    void mouse_button_callback(GLFWwindow* window, int button, int action, int mods) {
+        (void)mods;
+
+        if (button != GLFW_MOUSE_BUTTON_LEFT || action != GLFW_PRESS || g_mouse_captured) {
+            return;
+        }
+
+        if (ImGui::GetCurrentContext() != nullptr && ImGui::GetIO().WantCaptureMouse) {
+            return;
+        }
+
+        set_mouse_captured(window, true);
     }
 }
 
@@ -61,6 +84,8 @@ namespace app_input {
         g_camera = camera;
         g_toggle_debug_views_requested = false;
         g_toggle_light_markers_requested = false;
+        g_mouse_captured = false;
+        g_prev_escape_pressed = false;
         g_prev_p_pressed = false;
         g_prev_o_pressed = false;
         g_has_mouse_origin = false;
@@ -68,22 +93,29 @@ namespace app_input {
         glfwSetFramebufferSizeCallback(window, framebuffer_size_callback);
         glfwSetCursorPosCallback(window, cursor_position_callback);
         glfwSetWindowFocusCallback(window, window_focus_callback);
-        glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
+        glfwSetMouseButtonCallback(window, mouse_button_callback);
+        set_mouse_captured(window, true);
         if (glfwRawMouseMotionSupported()) {
             glfwSetInputMode(window, GLFW_RAW_MOUSE_MOTION, GLFW_TRUE);
         }
     }
 
-    void process_input(GLFWwindow* window) {
+    void process_input(GLFWwindow* window, const float delta_time) {
         if (g_camera == nullptr) {
             return;
         }
 
         const bool wants_keyboard = ImGui::GetCurrentContext() != nullptr && ImGui::GetIO().WantCaptureKeyboard;
 
-        if (glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_PRESS) {
-            glfwSetWindowShouldClose(window, true);
+        const bool is_escape_pressed = glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_PRESS;
+        if (is_escape_pressed && !g_prev_escape_pressed) {
+            if (g_mouse_captured) {
+                set_mouse_captured(window, false);
+            } else {
+                glfwSetWindowShouldClose(window, true);
+            }
         }
+        g_prev_escape_pressed = is_escape_pressed;
 
         const bool is_p_pressed = !wants_keyboard && glfwGetKey(window, GLFW_KEY_P) == GLFW_PRESS;
         if (is_p_pressed && !g_prev_p_pressed) {
@@ -101,18 +133,21 @@ namespace app_input {
             return;
         }
 
+        const float move_distance = CAMERA_MOVE_SPEED * delta_time;
+        const glm::vec3 right = glm::normalize(glm::cross(g_camera->dir_front, g_camera->dir_up));
+
         if (glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS)
-            g_camera->position += CAMERA_MOVE_SPEED * g_camera->dir_front;
+            g_camera->position += move_distance * g_camera->dir_front;
         if (glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS)
-            g_camera->position -= CAMERA_MOVE_SPEED * g_camera->dir_front;
+            g_camera->position -= move_distance * g_camera->dir_front;
         if (glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS)
-            g_camera->position -= glm::normalize(glm::cross(g_camera->dir_front, g_camera->dir_up)) * CAMERA_MOVE_SPEED;
+            g_camera->position -= right * move_distance;
         if (glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS)
-            g_camera->position += glm::normalize(glm::cross(g_camera->dir_front, g_camera->dir_up)) * CAMERA_MOVE_SPEED;
+            g_camera->position += right * move_distance;
         if (glfwGetKey(window, GLFW_KEY_SPACE) == GLFW_PRESS)
-            g_camera->position += CAMERA_MOVE_SPEED * g_camera->dir_up;
+            g_camera->position += move_distance * g_camera->dir_up;
         if (glfwGetKey(window, GLFW_KEY_LEFT_SHIFT) == GLFW_PRESS)
-            g_camera->position -= CAMERA_MOVE_SPEED * g_camera->dir_up;
+            g_camera->position -= move_distance * g_camera->dir_up;
     }
 
     bool consume_toggle_debug_views_requested() {

@@ -210,7 +210,7 @@ namespace chr {
             }
 
             last_time = cur_time;
-            app_input::process_input(window);
+            app_input::process_input(window, delta_time);
             if (app_input::consume_toggle_debug_views_requested()) {
                 const int next_debug_view =
                     (static_cast<int>(debug_view_mode) + 1) % static_cast<int>(DebugViewMode::Count);
