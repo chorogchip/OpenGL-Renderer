@@ -20,7 +20,10 @@ namespace {
         "Roughness",
         "AO",
         "Emissive",
-        "Environment"
+        "Environment",
+        "Irradiance",
+        "Prefilter",
+        "BRDF LUT"
     };
 }
 

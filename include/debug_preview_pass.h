@@ -15,6 +15,9 @@ namespace chr {
         Ao,
         Emissive,
         Environment,
+        Irradiance,
+        Prefilter,
+        BrdfLut,
         Count
     };
 
@@ -26,11 +29,15 @@ namespace chr {
         uint32_t material = 0;
         uint32_t emissive = 0;
         uint32_t environment = 0;
+        uint32_t irradiance = 0;
+        uint32_t prefilter = 0;
+        uint32_t brdf_lut = 0;
     };
 
     struct DebugPreviewPass {
         uint32_t shader_program = 0;
         int uniform_texture = -1;
+        int uniform_cubemap_texture = -1;
         int uniform_mode = -1;
 
         int init();

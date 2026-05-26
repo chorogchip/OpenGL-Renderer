@@ -94,6 +94,7 @@ namespace chr {
             return -1;
         }
         this->debug_environment_texture = this->skybox_pass.equirectangular_texture;
+        this->debug_irradiance_texture = this->skybox_pass.irradiance_cubemap;
         return 0;
     }
 
@@ -133,6 +134,9 @@ namespace chr {
         this->g_buffer_pass.clear();
         this->hdr_scene_target.clear();
         this->debug_environment_texture = 0;
+        this->debug_irradiance_texture = 0;
+        this->debug_prefilter_texture = 0;
+        this->debug_brdf_lut_texture = 0;
         this->width = 0;
         this->height = 0;
     }
@@ -210,6 +214,9 @@ namespace chr {
         preview_textures.material = this->g_buffer_pass.texture_material;
         preview_textures.emissive = this->g_buffer_pass.texture_emissive;
         preview_textures.environment = this->debug_environment_texture;
+        preview_textures.irradiance = this->debug_irradiance_texture;
+        preview_textures.prefilter = this->debug_prefilter_texture;
+        preview_textures.brdf_lut = this->debug_brdf_lut_texture;
         this->debug_preview_pass.render(
             preview_textures,
             mode,
@@ -224,4 +231,3 @@ namespace chr {
     }
 
 }
-

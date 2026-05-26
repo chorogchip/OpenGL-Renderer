@@ -30,6 +30,9 @@ namespace chr {
         LightMarkerPass light_marker_pass;
         SkyboxPass skybox_pass;
         uint32_t debug_environment_texture = 0;
+        uint32_t debug_irradiance_texture = 0;
+        uint32_t debug_prefilter_texture = 0;
+        uint32_t debug_brdf_lut_texture = 0;
         int width = 0;
         int height = 0;
         int init(int width, int height);

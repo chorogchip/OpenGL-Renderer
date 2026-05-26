@@ -5,9 +5,38 @@ out vec4 FragColor;
 in vec2 TexCoord;
 
 uniform sampler2D uTexture;
+uniform samplerCube uCubemapTexture;
 uniform int uMode;
 
+const float PI = 3.14159265359;
+
+vec3 latlong_direction(vec2 uv) {
+    float phi = uv.x * 2.0 * PI - PI;
+    float theta = uv.y * PI;
+    return normalize(vec3(
+        sin(theta) * sin(phi),
+        cos(theta),
+        sin(theta) * cos(phi)));
+}
+
+vec3 tonemap_hdr(vec3 color) {
+    vec3 mapped = color / (color + vec3(1.0));
+    return pow(mapped, vec3(1.0 / 2.2));
+}
+
 void main() {
+    if (uMode == 10) {
+        vec3 irradiance = texture(uCubemapTexture, latlong_direction(TexCoord)).rgb;
+        FragColor = vec4(tonemap_hdr(irradiance), 1.0);
+        return;
+    }
+
+    if (uMode == 11) {
+        vec3 prefilter = textureLod(uCubemapTexture, latlong_direction(TexCoord), 0.0).rgb;
+        FragColor = vec4(tonemap_hdr(prefilter), 1.0);
+        return;
+    }
+
     vec4 sample_value = texture(uTexture, TexCoord);
 
     if (uMode == 1) {
@@ -54,8 +83,12 @@ void main() {
     }
 
     if (uMode == 9) {
-        vec3 mapped = sample_value.rgb / (sample_value.rgb + vec3(1.0));
-        FragColor = vec4(pow(mapped, vec3(1.0 / 2.2)), 1.0);
+        FragColor = vec4(tonemap_hdr(sample_value.rgb), 1.0);
+        return;
+    }
+
+    if (uMode == 12) {
+        FragColor = vec4(sample_value.r, sample_value.g, 0.0, 1.0);
         return;
     }
 
