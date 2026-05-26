@@ -3,12 +3,12 @@
 #include <iostream>
 
 #include <glad/glad.h>
-#include <glm/gtc/matrix_transform.hpp>
 
 namespace {
     constexpr const char* SKYBOX_VERTEX_SHADER_PATH = "assets/shaders/skybox.vert";
     constexpr const char* SKYBOX_FRAGMENT_SHADER_PATH = "assets/shaders/skybox.frag";
     constexpr const char* EQUIRECTANGULAR_FRAGMENT_SHADER_PATH = "assets/shaders/equirectangular_to_cubemap.frag";
+    constexpr const char* IRRADIANCE_FRAGMENT_SHADER_PATH = "assets/shaders/irradiance_convolution.frag";
 
     constexpr float CUBE_VERTICES[] = {
         -1.0f,  1.0f, -1.0f, -1.0f, -1.0f, -1.0f,  1.0f, -1.0f, -1.0f,
@@ -25,15 +25,6 @@ namespace {
          1.0f, -1.0f, -1.0f, -1.0f, -1.0f,  1.0f,  1.0f, -1.0f,  1.0f
     };
 
-    const glm::mat4 CAPTURE_PROJECTION = glm::perspective(glm::radians(90.0f), 1.0f, 0.1f, 10.0f);
-    const glm::mat4 CAPTURE_VIEWS[] = {
-        glm::lookAt(glm::vec3(0.0f), glm::vec3( 1.0f,  0.0f,  0.0f), glm::vec3(0.0f, -1.0f,  0.0f)),
-        glm::lookAt(glm::vec3(0.0f), glm::vec3(-1.0f,  0.0f,  0.0f), glm::vec3(0.0f, -1.0f,  0.0f)),
-        glm::lookAt(glm::vec3(0.0f), glm::vec3( 0.0f,  1.0f,  0.0f), glm::vec3(0.0f,  0.0f,  1.0f)),
-        glm::lookAt(glm::vec3(0.0f), glm::vec3( 0.0f, -1.0f,  0.0f), glm::vec3(0.0f,  0.0f, -1.0f)),
-        glm::lookAt(glm::vec3(0.0f), glm::vec3( 0.0f,  0.0f,  1.0f), glm::vec3(0.0f, -1.0f,  0.0f)),
-        glm::lookAt(glm::vec3(0.0f), glm::vec3( 0.0f,  0.0f, -1.0f), glm::vec3(0.0f, -1.0f,  0.0f))
-    };
 }
 
 namespace chr {
@@ -57,7 +48,12 @@ namespace chr {
         skybox_shader_program = graphics_util::create_shader_program_from_files(
             SKYBOX_VERTEX_SHADER_PATH,
             SKYBOX_FRAGMENT_SHADER_PATH);
-        if (equirectangular_shader_program == 0 || skybox_shader_program == 0) {
+        irradiance_shader_program = graphics_util::create_shader_program_from_files(
+            SKYBOX_VERTEX_SHADER_PATH,
+            IRRADIANCE_FRAGMENT_SHADER_PATH);
+        if (equirectangular_shader_program == 0 ||
+            skybox_shader_program == 0 ||
+            irradiance_shader_program == 0) {
             return -1;
         }
 
@@ -67,6 +63,12 @@ namespace chr {
             glGetUniformLocation(equirectangular_shader_program, "projection");
         uniform_capture_view =
             glGetUniformLocation(equirectangular_shader_program, "view");
+        uniform_irradiance_environment_map =
+            glGetUniformLocation(irradiance_shader_program, "uEnvironmentMap");
+        uniform_irradiance_projection =
+            glGetUniformLocation(irradiance_shader_program, "projection");
+        uniform_irradiance_view =
+            glGetUniformLocation(irradiance_shader_program, "view");
         uniform_skybox_map = glGetUniformLocation(skybox_shader_program, "uEnvironmentMap");
         uniform_projection = glGetUniformLocation(skybox_shader_program, "projection");
         uniform_view = glGetUniformLocation(skybox_shader_program, "view");
@@ -91,6 +93,12 @@ namespace chr {
             return -1;
         }
 
+        cubemap_desc.size = irradiance_size;
+        irradiance_cubemap = graphics_util::create_cubemap_texture(cubemap_desc);
+        if (irradiance_cubemap == 0) {
+            return -1;
+        }
+
         graphics_util::CubemapCaptureTarget capture_target{};
         if (graphics_util::create_cubemap_capture_target(cubemap_size, &capture_target) != 0) {
             return -1;
@@ -98,7 +106,6 @@ namespace chr {
 
         glUseProgram(equirectangular_shader_program);
         glUniform1i(uniform_equirectangular_map, 0);
-        glUniformMatrix4fv(uniform_capture_projection, 1, GL_FALSE, &CAPTURE_PROJECTION[0][0]);
         glActiveTexture(GL_TEXTURE0);
         glBindTexture(GL_TEXTURE_2D, equirectangular_texture);
         glBindVertexArray(cube_vao);
@@ -106,12 +113,35 @@ namespace chr {
         const GLboolean depth_was_enabled = glIsEnabled(GL_DEPTH_TEST);
         glEnable(GL_DEPTH_TEST);
         glDepthFunc(GL_LEQUAL);
-        for (int face = 0; face < 6; ++face) {
-            graphics_util::bind_cubemap_face(capture_target, environment_cubemap, face);
+        graphics_util::render_cubemap_faces(
+            capture_target,
+            environment_cubemap,
+            [&](const graphics_util::CubemapFaceRenderInfo& face_info) {
+            glUniformMatrix4fv(uniform_capture_projection, 1, GL_FALSE, &face_info.projection[0][0]);
+            glUniformMatrix4fv(uniform_capture_view, 1, GL_FALSE, &face_info.view[0][0]);
             glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-            glUniformMatrix4fv(uniform_capture_view, 1, GL_FALSE, &CAPTURE_VIEWS[face][0][0]);
             glDrawArrays(GL_TRIANGLES, 0, 36);
+        });
+
+        graphics_util::destroy_cubemap_capture_target(&capture_target);
+        if (graphics_util::create_cubemap_capture_target(irradiance_size, &capture_target) != 0) {
+            return -1;
         }
+
+        glUseProgram(irradiance_shader_program);
+        glUniform1i(uniform_irradiance_environment_map, 0);
+        glActiveTexture(GL_TEXTURE0);
+        glBindTexture(GL_TEXTURE_CUBE_MAP, environment_cubemap);
+        graphics_util::render_cubemap_faces(
+            capture_target,
+            irradiance_cubemap,
+            [&](const graphics_util::CubemapFaceRenderInfo& face_info) {
+            glUniformMatrix4fv(uniform_irradiance_projection, 1, GL_FALSE, &face_info.projection[0][0]);
+            glUniformMatrix4fv(uniform_irradiance_view, 1, GL_FALSE, &face_info.view[0][0]);
+            glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+            glDrawArrays(GL_TRIANGLES, 0, 36);
+        });
+
         glDepthFunc(GL_LESS);
         if (!depth_was_enabled) {
             glDisable(GL_DEPTH_TEST);
@@ -124,6 +154,10 @@ namespace chr {
     }
 
     void SkyboxPass::clear() {
+        if (irradiance_cubemap != 0) {
+            glDeleteTextures(1, &irradiance_cubemap);
+            irradiance_cubemap = 0;
+        }
         if (environment_cubemap != 0) {
             glDeleteTextures(1, &environment_cubemap);
             environment_cubemap = 0;
@@ -148,10 +182,17 @@ namespace chr {
             glDeleteProgram(skybox_shader_program);
             skybox_shader_program = 0;
         }
+        if (irradiance_shader_program != 0) {
+            glDeleteProgram(irradiance_shader_program);
+            irradiance_shader_program = 0;
+        }
 
         uniform_equirectangular_map = -1;
         uniform_capture_projection = -1;
         uniform_capture_view = -1;
+        uniform_irradiance_environment_map = -1;
+        uniform_irradiance_projection = -1;
+        uniform_irradiance_view = -1;
         uniform_skybox_map = -1;
         uniform_projection = -1;
         uniform_view = -1;

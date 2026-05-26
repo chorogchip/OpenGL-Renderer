@@ -11,6 +11,7 @@ uniform sampler2D gEmissive;
 uniform sampler2D gDepth;
 uniform sampler2D uShadowMap;
 uniform sampler2D uSsaoMap;
+uniform samplerCube uIrradianceMap;
 uniform mat4 uInverseProjection;
 uniform mat4 uInverseView;
 uniform mat4 uLightViewProjection;
@@ -18,6 +19,7 @@ uniform vec3 uLightDirection;
 uniform vec3 uLightColor;
 uniform float uAmbientStrength;
 uniform float uDiffuseStrength;
+uniform int uHasIrradianceMap;
 uniform int uPointLightCount;
 uniform vec3 uPointLightPositions[5];
 uniform vec3 uPointLightColors[5];
@@ -136,6 +138,11 @@ void main() {
     float directional_shadow = calculate_directional_shadow(view_pos, normal);
 
     vec3 ambient = ambient_occlusion * uAmbientStrength * albedo.rgb;
+    if (uHasIrradianceMap != 0) {
+        vec3 world_normal = normalize(mat3(uInverseView) * normal);
+        vec3 irradiance = texture(uIrradianceMap, world_normal).rgb;
+        ambient += ambient_occlusion * irradiance * albedo.rgb * (1.0 - metallic);
+    }
     vec3 directional = (1.0 - directional_shadow) * calculate_pbr_light(
         albedo.rgb,
         normal,
