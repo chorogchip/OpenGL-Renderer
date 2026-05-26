@@ -123,6 +123,7 @@ namespace chr {
         this->fullscreen_quad.clear();
         this->g_buffer_pass.clear();
         this->hdr_scene_target.clear();
+        this->debug_environment_texture = 0;
         this->width = 0;
         this->height = 0;
     }
@@ -190,6 +191,7 @@ namespace chr {
         preview_textures.ssao = this->ssao_pass.blurred_texture();
         preview_textures.material = this->g_buffer_pass.texture_material;
         preview_textures.emissive = this->g_buffer_pass.texture_emissive;
+        preview_textures.environment = this->debug_environment_texture;
         this->debug_preview_pass.render(
             preview_textures,
             mode,
