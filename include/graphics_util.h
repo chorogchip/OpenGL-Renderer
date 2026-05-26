@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cstdint>
+#include <functional>
 #include <string>
 #include <vector>
 
@@ -31,6 +32,7 @@ namespace graphics_util {
 		uint32_t internal_format = 0;
 		uint32_t format = 0;
 		uint32_t type = 0;
+		int mip_levels = 1;
 		bool generate_mipmaps = false;
 	};
 
@@ -38,6 +40,12 @@ namespace graphics_util {
 		uint32_t framebuffer = 0;
 		uint32_t depth_renderbuffer = 0;
 		int size = 0;
+	};
+
+	struct CubemapFaceRenderInfo {
+		int face_index = 0;
+		glm::mat4 projection = glm::mat4(1.0f);
+		glm::mat4 view = glm::mat4(1.0f);
 	};
 
 	unsigned compile_shader(unsigned type, const char* source);
@@ -61,6 +69,10 @@ namespace graphics_util {
 		TextureColorSpace color_space = TextureColorSpace::Linear);
 	uint32_t create_hdr_texture_2d(const HdrTextureImage& image);
 	uint32_t load_hdr_texture_2d(const std::string& filename);
+	int cubemap_mip_count(int size);
+	int cubemap_mip_size(int size, int mip_level);
+	const glm::mat4& cubemap_capture_projection();
+	const glm::mat4& cubemap_capture_view(int face_index);
 	uint32_t create_cubemap_texture(const CubemapTextureDesc& desc);
 	int create_cubemap_capture_target(int size, CubemapCaptureTarget* out_target);
 	void destroy_cubemap_capture_target(CubemapCaptureTarget* target);
@@ -68,5 +80,10 @@ namespace graphics_util {
 		const CubemapCaptureTarget& target,
 		uint32_t cubemap_texture,
 		int face_index,
+		int mip_level = 0);
+	void render_cubemap_faces(
+		const CubemapCaptureTarget& target,
+		uint32_t cubemap_texture,
+		const std::function<void(const CubemapFaceRenderInfo&)>& render_face,
 		int mip_level = 0);
 }

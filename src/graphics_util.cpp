@@ -4,12 +4,27 @@
 #include <fstream>
 #include <glad/glad.h>
 #include <GLFW/glfw3.h>
+#include <glm/gtc/matrix_transform.hpp>
 #include <iostream>
 #include <sstream>
 #include <stb_image.h>
 
 
 namespace graphics_util {
+
+	namespace {
+		const glm::mat4 CUBEMAP_CAPTURE_PROJECTION =
+			glm::perspective(glm::radians(90.0f), 1.0f, 0.1f, 10.0f);
+		const glm::mat4 CUBEMAP_CAPTURE_VIEWS[] = {
+			glm::lookAt(glm::vec3(0.0f), glm::vec3( 1.0f,  0.0f,  0.0f), glm::vec3(0.0f, -1.0f,  0.0f)),
+			glm::lookAt(glm::vec3(0.0f), glm::vec3(-1.0f,  0.0f,  0.0f), glm::vec3(0.0f, -1.0f,  0.0f)),
+			glm::lookAt(glm::vec3(0.0f), glm::vec3( 0.0f,  1.0f,  0.0f), glm::vec3(0.0f,  0.0f,  1.0f)),
+			glm::lookAt(glm::vec3(0.0f), glm::vec3( 0.0f, -1.0f,  0.0f), glm::vec3(0.0f,  0.0f, -1.0f)),
+			glm::lookAt(glm::vec3(0.0f), glm::vec3( 0.0f,  0.0f,  1.0f), glm::vec3(0.0f, -1.0f,  0.0f)),
+			glm::lookAt(glm::vec3(0.0f), glm::vec3( 0.0f,  0.0f, -1.0f), glm::vec3(0.0f, -1.0f,  0.0f))
+		};
+		const glm::mat4 IDENTITY_MATRIX = glm::mat4(1.0f);
+	}
 
 	unsigned compile_shader(unsigned type, const char* source) {
 		unsigned shader = glCreateShader(type);
@@ -206,27 +221,70 @@ namespace graphics_util {
 		return texture;
 	}
 
+	int cubemap_mip_count(const int size) {
+		if (size <= 0) {
+			return 0;
+		}
+
+		int levels = 1;
+		int mip_size = size;
+		while (mip_size > 1) {
+			mip_size /= 2;
+			++levels;
+		}
+		return levels;
+	}
+
+	int cubemap_mip_size(const int size, const int mip_level) {
+		if (size <= 0 || mip_level < 0) {
+			return 0;
+		}
+		return std::max(1, size >> mip_level);
+	}
+
+	const glm::mat4& cubemap_capture_projection() {
+		return CUBEMAP_CAPTURE_PROJECTION;
+	}
+
+	const glm::mat4& cubemap_capture_view(const int face_index) {
+		if (face_index < 0 || face_index >= 6) {
+			std::cout << "Err: Invalid cubemap capture face index." << std::endl;
+			return IDENTITY_MATRIX;
+		}
+		return CUBEMAP_CAPTURE_VIEWS[face_index];
+	}
+
 	uint32_t create_cubemap_texture(const CubemapTextureDesc& desc) {
 		if (desc.size <= 0 || desc.internal_format == 0 || desc.format == 0 || desc.type == 0) {
 			std::cout << "Err: Invalid cubemap texture description." << std::endl;
 			return 0;
 		}
 
+		const int mip_levels = desc.mip_levels > 1 ? desc.mip_levels :
+			(desc.generate_mipmaps ? cubemap_mip_count(desc.size) : 1);
 		uint32_t texture = 0;
 		glGenTextures(1, &texture);
 		glBindTexture(GL_TEXTURE_CUBE_MAP, texture);
-		for (int face = 0; face < 6; ++face) {
-			glTexImage2D(
-				GL_TEXTURE_CUBE_MAP_POSITIVE_X + face, 0,
-				static_cast<GLint>(desc.internal_format),
-				desc.size, desc.size, 0,
-				desc.format, desc.type, nullptr);
+		for (int level = 0; level < mip_levels; ++level) {
+			const int level_size = cubemap_mip_size(desc.size, level);
+			for (int face = 0; face < 6; ++face) {
+				glTexImage2D(
+					GL_TEXTURE_CUBE_MAP_POSITIVE_X + face, level,
+					static_cast<GLint>(desc.internal_format),
+					level_size, level_size, 0,
+					desc.format, desc.type, nullptr);
+			}
 		}
 		glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
 		glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
 		glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_EDGE);
-		glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MIN_FILTER, desc.generate_mipmaps ? GL_LINEAR_MIPMAP_LINEAR : GL_LINEAR);
+		glTexParameteri(
+			GL_TEXTURE_CUBE_MAP,
+			GL_TEXTURE_MIN_FILTER,
+			(desc.generate_mipmaps || mip_levels > 1) ? GL_LINEAR_MIPMAP_LINEAR : GL_LINEAR);
 		glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+		glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_BASE_LEVEL, 0);
+		glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MAX_LEVEL, mip_levels - 1);
 		if (desc.generate_mipmaps) {
 			glGenerateMipmap(GL_TEXTURE_CUBE_MAP);
 		}
@@ -291,7 +349,7 @@ namespace graphics_util {
 			return;
 		}
 
-		const int mip_size = std::max(1, target.size >> mip_level);
+		const int mip_size = cubemap_mip_size(target.size, mip_level);
 		glBindFramebuffer(GL_FRAMEBUFFER, target.framebuffer);
 		glViewport(0, 0, mip_size, mip_size);
 		glFramebufferTexture2D(
@@ -300,6 +358,26 @@ namespace graphics_util {
 			GL_TEXTURE_CUBE_MAP_POSITIVE_X + face_index,
 			cubemap_texture,
 			mip_level);
+	}
+
+	void render_cubemap_faces(
+		const CubemapCaptureTarget& target,
+		const uint32_t cubemap_texture,
+		const std::function<void(const CubemapFaceRenderInfo&)>& render_face,
+		const int mip_level) {
+		if (!render_face) {
+			std::cout << "Err: Missing cubemap face render callback." << std::endl;
+			return;
+		}
+
+		for (int face = 0; face < 6; ++face) {
+			bind_cubemap_face(target, cubemap_texture, face, mip_level);
+			CubemapFaceRenderInfo info{};
+			info.face_index = face;
+			info.projection = cubemap_capture_projection();
+			info.view = cubemap_capture_view(face);
+			render_face(info);
+		}
 	}
 
 	uint32_t load_texture_2d(const std::string& filename, const TextureColorSpace color_space) {
