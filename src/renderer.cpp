@@ -6,6 +6,9 @@
 
 namespace {
     constexpr const char* LIGHTING_VERTEX_SHADER_PATH = "assets/shaders/deferred_light.vert";
+#ifndef OPENGL_RENDERER_DEFAULT_ENVIRONMENT_HDR
+#define OPENGL_RENDERER_DEFAULT_ENVIRONMENT_HDR ""
+#endif
     constexpr int POINT_LIGHT_COUNT = 5;
     const std::array<chr::PointLightDesc, POINT_LIGHT_COUNT> POINT_LIGHTS = {{
         {
@@ -86,6 +89,11 @@ namespace chr {
             clear();
             return -1;
         }
+        if (this->skybox_pass.init(OPENGL_RENDERER_DEFAULT_ENVIRONMENT_HDR) != 0) {
+            clear();
+            return -1;
+        }
+        this->debug_environment_texture = this->skybox_pass.equirectangular_texture;
         return 0;
     }
 
@@ -119,6 +127,7 @@ namespace chr {
         this->tone_mapping_pass.clear();
         this->debug_preview_pass.clear();
         this->light_marker_pass.clear();
+        this->skybox_pass.clear();
         this->shadow_pass.clear();
         this->fullscreen_quad.clear();
         this->g_buffer_pass.clear();
@@ -147,6 +156,13 @@ namespace chr {
             this->fullscreen_quad.vao,
             mat_projection);
 
+        this->skybox_pass.render(
+            this->hdr_scene_target.framebuffer,
+            this->width,
+            this->height,
+            mat_projection,
+            mat_view);
+
         DeferredLightingInputs lighting_inputs{};
         lighting_inputs.framebuffer = this->hdr_scene_target.framebuffer;
         lighting_inputs.texture_albedo = this->g_buffer_pass.texture_albedo;
@@ -157,6 +173,7 @@ namespace chr {
         lighting_inputs.texture_shadow_depth = this->shadow_pass.depth_texture();
         lighting_inputs.texture_ssao = this->ssao_pass.blurred_texture();
         lighting_inputs.fullscreen_quad_vao = this->fullscreen_quad.vao;
+        lighting_inputs.clear_color = !this->skybox_pass.is_ready();
         lighting_inputs.width = this->width;
         lighting_inputs.height = this->height;
         lighting_inputs.mat_projection = mat_projection;
@@ -206,4 +223,3 @@ namespace chr {
     }
 
 }
-

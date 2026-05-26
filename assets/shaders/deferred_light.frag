@@ -125,6 +125,9 @@ void main() {
     float metallic = clamp(material.r, 0.0, 1.0);
     float roughness = clamp(material.g, 0.04, 1.0);
     float depth = texture(gDepth, TexCoord).r;
+    if (depth >= 0.999999) {
+        discard;
+    }
     float ambient_occlusion = texture(uSsaoMap, TexCoord).r * material.b;
 
     vec3 view_pos = reconstruct_view_position(TexCoord, depth);

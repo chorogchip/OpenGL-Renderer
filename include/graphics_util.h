@@ -19,6 +19,13 @@ namespace graphics_util {
 		std::vector<unsigned char> pixels;
 	};
 
+	struct HdrTextureImage {
+		int width = 0;
+		int height = 0;
+		int channels = 0;
+		std::vector<float> pixels;
+	};
+
 	struct CubemapTextureDesc {
 		int size = 0;
 		uint32_t internal_format = 0;
@@ -48,9 +55,12 @@ namespace graphics_util {
 		const std::string& filename,
 		TextureColorSpace color_space = TextureColorSpace::Linear);
 	TextureImage load_texture_image(const std::string& filename);
+	HdrTextureImage load_hdr_texture_image(const std::string& filename);
 	uint32_t create_texture_2d(
 		const TextureImage& image,
 		TextureColorSpace color_space = TextureColorSpace::Linear);
+	uint32_t create_hdr_texture_2d(const HdrTextureImage& image);
+	uint32_t load_hdr_texture_2d(const std::string& filename);
 	uint32_t create_cubemap_texture(const CubemapTextureDesc& desc);
 	int create_cubemap_capture_target(int size, CubemapCaptureTarget* out_target);
 	void destroy_cubemap_capture_target(CubemapCaptureTarget* target);

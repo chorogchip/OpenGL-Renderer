@@ -128,6 +128,36 @@ namespace graphics_util {
 		return image;
 	}
 
+	HdrTextureImage load_hdr_texture_image(const std::string& filename) {
+		HdrTextureImage image{};
+		if (filename.empty()) {
+			return image;
+		}
+
+		int tex_width = 0;
+		int tex_height = 0;
+		int tex_channels = 0;
+
+		stbi_set_flip_vertically_on_load(true);
+		float* data = stbi_loadf(
+			filename.c_str(),
+			&tex_width, &tex_height, &tex_channels, 3);
+		stbi_set_flip_vertically_on_load(false);
+		if (data == nullptr) {
+			std::cout << "Failed to load HDR texture: " << filename << std::endl;
+			return image;
+		}
+
+		image.width = tex_width;
+		image.height = tex_height;
+		image.channels = 3;
+		const std::size_t value_count = static_cast<std::size_t>(tex_width) *
+			static_cast<std::size_t>(tex_height) * 3;
+		image.pixels.assign(data, data + value_count);
+		stbi_image_free(data);
+		return image;
+	}
+
 	uint32_t create_texture_2d(const TextureImage& image, const TextureColorSpace color_space) {
 		if (image.width <= 0 || image.height <= 0 || image.pixels.empty()) {
 			return 0;
@@ -148,6 +178,29 @@ namespace graphics_util {
 			GL_TEXTURE_2D, 0, internal_format,
 			image.width, image.height, 0, GL_RGBA, GL_UNSIGNED_BYTE, image.pixels.data());
 		glGenerateMipmap(GL_TEXTURE_2D);
+		glPixelStorei(GL_UNPACK_ALIGNMENT, prev_unpack_alignment);
+
+		return texture;
+	}
+
+	uint32_t create_hdr_texture_2d(const HdrTextureImage& image) {
+		if (image.width <= 0 || image.height <= 0 || image.pixels.empty()) {
+			return 0;
+		}
+
+		uint32_t texture = 0;
+		GLint prev_unpack_alignment = 4;
+		glGetIntegerv(GL_UNPACK_ALIGNMENT, &prev_unpack_alignment);
+		glGenTextures(1, &texture);
+		glBindTexture(GL_TEXTURE_2D, texture);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+		glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
+		glTexImage2D(
+			GL_TEXTURE_2D, 0, GL_RGB16F,
+			image.width, image.height, 0, GL_RGB, GL_FLOAT, image.pixels.data());
 		glPixelStorei(GL_UNPACK_ALIGNMENT, prev_unpack_alignment);
 
 		return texture;
@@ -251,6 +304,10 @@ namespace graphics_util {
 
 	uint32_t load_texture_2d(const std::string& filename, const TextureColorSpace color_space) {
 		return create_texture_2d(load_texture_image(filename), color_space);
+	}
+
+	uint32_t load_hdr_texture_2d(const std::string& filename) {
+		return create_hdr_texture_2d(load_hdr_texture_image(filename));
 	}
 
 }

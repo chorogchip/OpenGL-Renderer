@@ -19,6 +19,7 @@ namespace chr {
         uint32_t texture_shadow_depth = 0;
         uint32_t texture_ssao = 0;
         uint32_t fullscreen_quad_vao = 0;
+        bool clear_color = true;
         int width = 0;
         int height = 0;
         glm::mat4 mat_projection = glm::mat4(1.0f);

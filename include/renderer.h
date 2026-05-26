@@ -14,6 +14,7 @@
 #include "hdr_scene_target.h"
 #include "light_marker_pass.h"
 #include "shadow_pass.h"
+#include "skybox_pass.h"
 
 namespace chr {
 
@@ -25,9 +26,10 @@ namespace chr {
         FullscreenQuad fullscreen_quad;
         DeferredLightingPass deferred_lighting_pass;
         ToneMappingPass tone_mapping_pass;
-        uint32_t debug_environment_texture = 0;
         DebugPreviewPass debug_preview_pass;
         LightMarkerPass light_marker_pass;
+        SkyboxPass skybox_pass;
+        uint32_t debug_environment_texture = 0;
         int width = 0;
         int height = 0;
         int init(int width, int height);

@@ -179,6 +179,7 @@ add_executable(${PROJECT_NAME} ${SOURCES})
 
 target_compile_definitions(${PROJECT_NAME} PRIVATE
     OPENGL_RENDERER_DEFAULT_SPONZA_SCENE="${SPONZA_SCENE_FILE}"
+    OPENGL_RENDERER_DEFAULT_ENVIRONMENT_HDR="${CMAKE_CURRENT_SOURCE_DIR}/assets/main_sponza/textures/kloppenheim_05_4k.hdr"
 )
 
 target_include_directories(${PROJECT_NAME} PRIVATE include)

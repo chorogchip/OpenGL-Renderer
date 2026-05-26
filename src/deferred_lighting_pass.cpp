@@ -89,8 +89,10 @@ namespace chr {
     void DeferredLightingPass::render(const DeferredLightingInputs& inputs) {
         glBindFramebuffer(GL_FRAMEBUFFER, inputs.framebuffer);
         glViewport(0, 0, inputs.width, inputs.height);
-        glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
-        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+        if (inputs.clear_color) {
+            glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
+            glClear(GL_COLOR_BUFFER_BIT);
+        }
 
         const glm::mat4 inverse_projection = glm::inverse(inputs.mat_projection);
         const glm::mat4 inverse_view = glm::inverse(inputs.mat_view);
