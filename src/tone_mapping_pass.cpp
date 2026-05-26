@@ -21,8 +21,8 @@ namespace chr {
             return -1;
         }
 
-        uniform_scene_color = glGetUniformLocation(shader_program, "uSceneColor");
-        uniform_exposure = glGetUniformLocation(shader_program, "uExposure");
+        uniform_scene_color = graphics_util::get_uniform_location(shader_program, "uSceneColor");
+        uniform_exposure = graphics_util::get_uniform_location(shader_program, "uExposure");
         return 0;
     }
 
@@ -44,8 +44,8 @@ namespace chr {
         glViewport(0, 0, width, height);
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
         glUseProgram(shader_program);
-        glUniform1i(uniform_scene_color, 0);
-        glUniform1f(uniform_exposure, exposure);
+        graphics_util::set_uniform_int(uniform_scene_color, 0);
+        graphics_util::set_uniform_float(uniform_exposure, exposure);
         glActiveTexture(GL_TEXTURE0);
         glBindTexture(GL_TEXTURE_2D, texture_scene_color);
         glBindVertexArray(fullscreen_quad_vao);
