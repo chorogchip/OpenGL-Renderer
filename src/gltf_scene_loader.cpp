@@ -80,7 +80,6 @@ namespace chr {
             out_material.double_sided = material.doubleSided;
             if (material.normalTexture.has_value()) {
                 out_material.normal_scale = material.normalTexture->scale;
-                out_material.height_scale = 0.08f;
             }
             if (material.occlusionTexture.has_value()) {
                 out_material.occlusion_strength = material.occlusionTexture->strength;
