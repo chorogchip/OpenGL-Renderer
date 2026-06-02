@@ -1,6 +1,9 @@
 #include "imgui_layer.h"
 
 #include <GLFW/glfw3.h>
+#include <glm/glm.hpp>
+#include <string>
+#include <array>
 
 #include "debug_preview_pass.h"
 
@@ -70,6 +73,10 @@ namespace imgui_layer {
         chr::DebugViewMode* debug_view_mode,
         bool* show_light_markers,
         float* exposure,
+        float* directional_light_intensity,
+        glm::vec3* directional_light_color,
+        float* ambient_intensity,
+        std::array<float, 5>* point_light_intensities,
         const RendererOverlayStats& stats) {
         ImGui::Begin("Renderer");
         ImGui::Text("Render Controls");
@@ -84,6 +91,16 @@ namespace imgui_layer {
         }
         ImGui::Checkbox("Point Light Markers", show_light_markers);
         ImGui::SliderFloat("Exposure", exposure, 0.1f, 5.0f, "%.2f");
+        ImGui::Separator();
+        ImGui::Text("Directional Light");
+        ImGui::SliderFloat("Dir Light Intensity", directional_light_intensity, 0.0f, 5.0f, "%.2f");
+        ImGui::ColorEdit3("Dir Light Color", &directional_light_color->x);
+        ImGui::SliderFloat("Ambient Intensity", ambient_intensity, 0.0f, 1.0f, "%.2f");
+        ImGui::Separator();
+        ImGui::Text("Point Lights");
+        for (int i = 0; i < 5; ++i) {
+            ImGui::SliderFloat(("Point Light " + std::to_string(i+1)).c_str(), &(*point_light_intensities)[i], 0.0f, 20.0f, "%.2f");
+        }
         ImGui::Separator();
         ImGui::Text("Frame: %llu", static_cast<unsigned long long>(stats.frame_index));
         ImGui::Text("FPS: %.1f", stats.fps);

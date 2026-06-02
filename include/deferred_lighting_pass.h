@@ -29,6 +29,10 @@ namespace chr {
         glm::mat4 mat_view = glm::mat4(1.0f);
         glm::mat4 mat_light_view_projection = glm::mat4(1.0f);
         std::array<PointLightDesc, 5> point_lights = {};
+        float directional_light_intensity = 2.5f;
+        glm::vec3 directional_light_color = glm::vec3(1.0f, 0.98f, 0.92f);
+        float ambient_intensity = 0.20f;
+        std::array<float, 5> point_light_intensities = {12.0f, 8.0f, 8.0f, 8.0f, 8.0f};
     };
 
     struct DeferredLightingPass {

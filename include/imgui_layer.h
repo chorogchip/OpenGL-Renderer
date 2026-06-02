@@ -2,6 +2,9 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <array>
+
+#include <glm/glm.hpp>
 
 struct GLFWwindow;
 
@@ -30,6 +33,10 @@ namespace imgui_layer {
         chr::DebugViewMode* debug_view_mode,
         bool* show_light_markers,
         float* exposure,
+        float* directional_light_intensity,
+        glm::vec3* directional_light_color,
+        float* ambient_intensity,
+        std::array<float, 5>* point_light_intensities,
         const RendererOverlayStats& stats);
     void end_frame();
 }

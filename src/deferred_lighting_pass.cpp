@@ -149,9 +149,9 @@ namespace chr {
         glUniformMatrix4fv(uniform_inverse_view, 1, GL_FALSE, &inverse_view[0][0]);
         glUniformMatrix4fv(uniform_light_view_projection, 1, GL_FALSE, &inputs.mat_light_view_projection[0][0]);
         glUniform3fv(uniform_light_direction, 1, &view_light_direction[0]);
-        glUniform3fv(uniform_light_color, 1, &LIGHT_COLOR[0]);
-        glUniform1f(uniform_ambient_strength, AMBIENT_STRENGTH);
-        glUniform1f(uniform_diffuse_strength, DIFFUSE_STRENGTH);
+        glUniform3fv(uniform_light_color, 1, &inputs.directional_light_color[0]);
+        glUniform1f(uniform_ambient_strength, inputs.ambient_intensity);
+        glUniform1f(uniform_diffuse_strength, inputs.directional_light_intensity);
         glUniform1i(uniform_point_light_count, static_cast<int>(inputs.point_lights.size()));
 
         for (int i = 0; i < static_cast<int>(inputs.point_lights.size()); ++i) {
@@ -159,7 +159,7 @@ namespace chr {
                 glm::vec3(inputs.mat_view * glm::vec4(inputs.point_lights[i].position, 1.0f));
             glUniform3fv(uniform_point_light_positions[i], 1, &view_light_position[0]);
             glUniform3fv(uniform_point_light_colors[i], 1, &inputs.point_lights[i].color[0]);
-            glUniform1f(uniform_point_light_intensities[i], inputs.point_lights[i].intensity);
+            glUniform1f(uniform_point_light_intensities[i], inputs.point_light_intensities[i]);
             glUniform1f(uniform_point_light_ranges[i], inputs.point_lights[i].range);
         }
 

@@ -29,6 +29,10 @@ namespace chr {
         DebugPreviewPass debug_preview_pass;
         LightMarkerPass light_marker_pass;
         SkyboxPass skybox_pass;
+        float directional_light_intensity = 2.5f;
+        glm::vec3 directional_light_color = glm::vec3(1.0f, 0.98f, 0.92f);
+        float ambient_intensity = 0.20f;
+        std::array<float, 5> point_light_intensities = {12.0f, 8.0f, 8.0f, 8.0f, 8.0f};
         uint32_t debug_environment_texture = 0;
         uint32_t debug_environment_cubemap_texture = 0;
         uint32_t debug_irradiance_texture = 0;

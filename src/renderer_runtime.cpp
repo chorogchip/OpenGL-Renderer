@@ -285,6 +285,10 @@ namespace chr {
                 &debug_view_mode,
                 &show_light_markers,
                 &renderer->tone_mapping_pass.exposure,
+                &renderer->directional_light_intensity,
+                &renderer->directional_light_color,
+                &renderer->ambient_intensity,
+                &renderer->point_light_intensities,
                 overlay_stats);
             imgui_layer::end_frame();
 
