@@ -10,7 +10,7 @@
 #include "graphics_util.h"
 
 namespace {
-    constexpr const char* FULLSCREEN_VERTEX_SHADER_PATH = "assets/shaders/deferred_light.vert";
+    constexpr const char* FULLSCREEN_VERTEX_SHADER_PATH = "assets/shaders/fullscreen.vert";
     constexpr const char* SSAO_FRAGMENT_SHADER_PATH = "assets/shaders/ssao.frag";
     constexpr const char* SSAO_BLUR_FRAGMENT_SHADER_PATH = "assets/shaders/ssao_blur.frag";
     constexpr int SSAO_KERNEL_SIZE = 16;

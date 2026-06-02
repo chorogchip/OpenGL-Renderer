@@ -5,7 +5,7 @@
 #include "graphics_util.h"
 
 namespace {
-    constexpr const char* FULLSCREEN_VERTEX_SHADER_PATH = "assets/shaders/deferred_light.vert";
+    constexpr const char* FULLSCREEN_VERTEX_SHADER_PATH = "assets/shaders/fullscreen.vert";
     constexpr const char* DEBUG_FRAGMENT_SHADER_PATH = "assets/shaders/debug_buffer.frag";
 
     static void find_uniforms(chr::DebugPreviewPass* pass) {

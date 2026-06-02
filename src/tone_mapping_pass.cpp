@@ -5,8 +5,8 @@
 #include "graphics_util.h"
 
 namespace {
-    constexpr const char* FULLSCREEN_VERTEX_SHADER_PATH = "assets/shaders/deferred_light.vert";
-    constexpr const char* TONE_MAP_FRAGMENT_SHADER_PATH = "assets/shaders/tone_map.frag";
+    constexpr const char* FULLSCREEN_VERTEX_SHADER_PATH = "assets/shaders/fullscreen.vert";
+    constexpr const char* TONE_MAP_FRAGMENT_SHADER_PATH = "assets/shaders/post_process.frag";
 
     static void find_uniforms(chr::ToneMappingPass* pass) {
         pass->uniform_scene_color = graphics_util::get_uniform_location(pass->shader_program, "uSceneColor");

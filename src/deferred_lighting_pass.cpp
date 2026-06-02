@@ -8,7 +8,7 @@
 #include "graphics_util.h"
 
 namespace {
-    constexpr const char* FULLSCREEN_VERTEX_SHADER_PATH = "assets/shaders/deferred_light.vert";
+    constexpr const char* FULLSCREEN_VERTEX_SHADER_PATH = "assets/shaders/fullscreen.vert";
     constexpr const char* LIGHTING_FRAGMENT_SHADER_PATH = "assets/shaders/deferred_light.frag";
     const glm::vec3 LIGHT_DIRECTION = glm::normalize(glm::vec3(-0.6f, -1.0f, -0.35f));
     const glm::vec3 LIGHT_COLOR = glm::vec3(1.0f, 0.98f, 0.92f);
