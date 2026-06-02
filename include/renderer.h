@@ -29,6 +29,7 @@ namespace chr {
         DebugPreviewPass debug_preview_pass;
         LightMarkerPass light_marker_pass;
         SkyboxPass skybox_pass;
+        RenderFeatures render_features;
         uint32_t debug_environment_texture = 0;
         uint32_t debug_environment_cubemap_texture = 0;
         uint32_t debug_irradiance_texture = 0;

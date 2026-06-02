@@ -285,6 +285,7 @@ namespace chr {
                 &debug_view_mode,
                 &show_light_markers,
                 &renderer->tone_mapping_pass.exposure,
+                &renderer->render_features,
                 overlay_stats);
             imgui_layer::end_frame();
 
