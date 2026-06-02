@@ -13,31 +13,31 @@ namespace {
     constexpr int POINT_LIGHT_COUNT = 5;
     const std::array<chr::PointLightDesc, POINT_LIGHT_COUNT> POINT_LIGHTS = {{
         {
-            glm::vec3(0.0f, 5.5f, 0.0f),
+            glm::vec3(0.0f, 3.5f, 0.0f),
             glm::vec3(1.0f, 0.82f, 0.55f),
             12.0f,
             3.0f
         },
         {
-            glm::vec3(-5.5f, 3.0f, 4.0f),
+            glm::vec3(-3.5f, 2.5f, 2.5f),
             glm::vec3(1.0f, 0.55f, 0.35f),
             8.0f,
             2.5f
         },
         {
-            glm::vec3(5.5f, 3.0f, 4.0f),
+            glm::vec3(3.5f, 2.5f, 2.5f),
             glm::vec3(0.45f, 0.65f, 1.0f),
             8.0f,
             2.5f
         },
         {
-            glm::vec3(-5.5f, 3.0f, -4.0f),
+            glm::vec3(-3.5f, 2.5f, -2.5f),
             glm::vec3(0.55f, 1.0f, 0.65f),
             8.0f,
             2.5f
         },
         {
-            glm::vec3(5.5f, 3.0f, -4.0f),
+            glm::vec3(3.5f, 2.5f, -2.5f),
             glm::vec3(1.0f, 0.35f, 0.45f),
             8.0f,
             2.5f
