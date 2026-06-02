@@ -323,6 +323,7 @@ namespace chr {
         if (state->phase == SceneGPUInitPhase::TexturePrefetch) {
             // First pass: collect unique paths and launch async decodes
             if (state->prefetch_futures.empty() && state->material_index == 0) {
+                int64_t prefetch_start_ms = app_log::now_ms();
                 std::unordered_set<std::string> unique_texture_paths;
                 for (const auto& material : scene_raw.materials) {
                     if (!material.texture_diffuse.empty()) unique_texture_paths.insert(material.texture_diffuse);
@@ -333,7 +334,14 @@ namespace chr {
                     if (!material.texture_emissive.empty()) unique_texture_paths.insert(material.texture_emissive);
                 }
 
-                app_log::info("  [TexturePrefetch] Launching " + std::to_string(unique_texture_paths.size()) + " async decodes");
+                state->total_prefetch_count = 0;
+                for (const auto& path : unique_texture_paths) {
+                    if (state->texture_cache.find(path) == state->texture_cache.end()) {
+                        state->total_prefetch_count++;
+                    }
+                }
+
+                app_log::info("  [TexturePrefetch] Launching " + std::to_string(state->total_prefetch_count) + " async decodes");
 
                 for (const auto& path : unique_texture_paths) {
                     if (state->texture_cache.find(path) == state->texture_cache.end()) {
@@ -342,12 +350,18 @@ namespace chr {
                             [path]() { return graphics_util::load_texture_image(path); });
                     }
                 }
-                state->init_start_ms = app_log::now_ms();
+                state->completed_prefetch_count = 0;
+                state->init_start_ms = prefetch_start_ms;
             }
 
-            // Second pass: upload ready textures immediately
+            // Second pass: upload ready textures with 8ms time budget per frame
+            const int64_t upload_start_ms = app_log::now_ms();
+            constexpr int64_t UPLOAD_BUDGET_MS = 8LL;
             std::vector<std::string> completed_paths;
             for (auto& [path, future] : state->prefetch_futures) {
+                if (app_log::now_ms() - upload_start_ms >= UPLOAD_BUDGET_MS) {
+                    break;
+                }
                 if (future.wait_for(std::chrono::seconds(0)) == std::future_status::ready) {
                     graphics_util::TextureImage image = future.get();
 
@@ -367,12 +381,26 @@ namespace chr {
 
                     completed_paths.push_back(path);
                     state->message = "Uploading material textures...";
+                    ++state->completed_prefetch_count;
                 }
             }
 
             // Remove uploaded textures from pending
             for (const auto& path : completed_paths) {
                 state->prefetch_futures.erase(path);
+            }
+
+            // Update progress based on completion count
+            if (state->total_prefetch_count > 0) {
+                float prefetch_progress = static_cast<float>(state->completed_prefetch_count) / static_cast<float>(state->total_prefetch_count);
+                state->progress = GPU_PROGRESS_SHADER_WEIGHT + GPU_PROGRESS_MESH_WEIGHT +
+                    GPU_PROGRESS_MATERIAL_WEIGHT * prefetch_progress;
+
+                if (state->completed_prefetch_count % 10 == 0 && state->completed_prefetch_count > 0) {
+                    int progress_pct = static_cast<int>(prefetch_progress * 100.0f);
+                    app_log::info("    [TexturePrefetch] " + std::to_string(progress_pct) + "% (" +
+                        std::to_string(state->completed_prefetch_count) + "/" + std::to_string(state->total_prefetch_count) + ")");
+                }
             }
 
             // Move to Materials when all uploads complete
@@ -383,6 +411,7 @@ namespace chr {
                 state->phase = SceneGPUInitPhase::Materials;
                 state->progress = GPU_PROGRESS_SHADER_WEIGHT + GPU_PROGRESS_MESH_WEIGHT;
                 state->message = "Loading material data...";
+                state->material_index = 0;
                 state->init_start_ms = app_log::now_ms();  // Reset for Materials timing
             }
 
@@ -533,25 +562,30 @@ namespace chr {
         }
 
         if (state->phase == SceneGPUInitPhase::MipmapGeneration) {
-            int64_t phase_start = app_log::now_ms();
-
-            // Batch generate mipmaps for a few textures per frame
-            const int mipmaps_per_frame = 8;
+            // Generate mipmaps with 6ms time budget per frame to avoid freeze
+            const int64_t mipmap_start_ms = app_log::now_ms();
+            constexpr int64_t MIPMAP_BUDGET_MS = 6LL;
             const int total_textures = static_cast<int>(resources->owned_texture_handles.size());
-            int generated = 0;
 
-            while (state->mipmap_generation_index < total_textures && generated < mipmaps_per_frame) {
+            while (state->mipmap_generation_index < total_textures) {
                 uint32_t texture = resources->owned_texture_handles[state->mipmap_generation_index];
                 glBindTexture(GL_TEXTURE_2D, texture);
                 glGenerateMipmap(GL_TEXTURE_2D);
                 ++state->mipmap_generation_index;
-                ++generated;
+
+                if (app_log::now_ms() - mipmap_start_ms >= MIPMAP_BUDGET_MS) {
+                    break;
+                }
+            }
+
+            // Update progress for mipmap generation
+            if (total_textures > 0) {
+                state->progress = GPU_PROGRESS_SHADER_WEIGHT + GPU_PROGRESS_MESH_WEIGHT +
+                    GPU_PROGRESS_MATERIAL_WEIGHT +
+                    0.05f * (static_cast<float>(state->mipmap_generation_index) / static_cast<float>(total_textures));
             }
 
             if (state->mipmap_generation_index >= total_textures) {
-                int64_t phase_elapsed = app_log::now_ms() - phase_start;
-                app_log::info("  [MipmapGeneration] " + std::to_string(phase_elapsed) + "ms (batch)");
-
                 state->phase = SceneGPUInitPhase::Complete;
                 state->progress = 1.0f;
                 state->message = "Scene ready.";

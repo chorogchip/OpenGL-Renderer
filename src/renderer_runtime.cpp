@@ -23,7 +23,6 @@ namespace {
     constexpr float SCENE_FILE_PROGRESS_WEIGHT = 0.55f;
     constexpr float FRAMEBUFFER_PROGRESS_WEIGHT = 0.07f;
     constexpr float GPU_RESOURCE_PROGRESS_WEIGHT = 0.38f;
-    constexpr double EXPECTED_SCENE_FILE_LOAD_SECONDS = 8.0;
 
     static chr::LoadingScreenState make_progress_loading_state(
         const std::string& title,
@@ -77,7 +76,6 @@ namespace chr {
 
         bool load_failed = false;
         double load_failed_time = 0.0;
-        const double scene_load_start_time = glfwGetTime();
         SceneLoadSnapshot load_snapshot = scene_loader.snapshot();
         while (!glfwWindowShouldClose(window)) {
             scene_loader.poll();
@@ -85,10 +83,7 @@ namespace chr {
 
             LoadingScreenState loading_state = make_loading_screen_state(load_snapshot);
             if (load_snapshot.status == SceneLoadStatus::Loading) {
-                const double elapsed = glfwGetTime() - scene_load_start_time;
-                const float scene_file_progress = static_cast<float>(
-                    std::min(elapsed / EXPECTED_SCENE_FILE_LOAD_SECONDS, 0.97));
-                loading_state.progress = scene_file_progress * SCENE_FILE_PROGRESS_WEIGHT;
+                loading_state.progress = load_snapshot.file_progress * SCENE_FILE_PROGRESS_WEIGHT;
             }
             else if (load_snapshot.status == SceneLoadStatus::Ready) {
                 loading_state.progress = SCENE_FILE_PROGRESS_WEIGHT;
@@ -123,9 +118,6 @@ namespace chr {
             app_log::error(std::string("Failed to load scene data from: ") + scene_path);
             return false;
         }
-
-        const double scene_load_elapsed = glfwGetTime() - scene_load_start_time;
-        app_log::info("Scene file loaded: " + std::to_string(static_cast<int>(scene_load_elapsed * 1000)) + "ms");
 
         return true;
     }

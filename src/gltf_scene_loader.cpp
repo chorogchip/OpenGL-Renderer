@@ -246,10 +246,11 @@ namespace chr {
             extension == ".GLTF" || extension == ".GLB";
     }
 
-    SceneRaw load_gltf_scene(const std::filesystem::path& path) {
+    SceneRaw load_gltf_scene(const std::filesystem::path& path, std::atomic<float>* progress) {
         SceneRaw result;
         const std::filesystem::path model_dir = path.parent_path();
 
+        if (progress) progress->store(0.1f, std::memory_order_relaxed);
         auto gltf_data = fastgltf::GltfDataBuffer::FromPath(path);
         if (gltf_data.error() != fastgltf::Error::None) {
             std::cerr << "fastgltf file error: " << fastgltf::getErrorMessage(gltf_data.error()) << std::endl;
@@ -267,12 +268,15 @@ namespace chr {
             return result;
         }
 
+        if (progress) progress->store(0.25f, std::memory_order_relaxed);
         const fastgltf::Asset& asset = asset_result.get();
 
         result.materials.reserve(asset.materials.size());
         for (const fastgltf::Material& material : asset.materials) {
             result.materials.push_back(convert_material(asset, material, model_dir));
         }
+
+        if (progress) progress->store(0.35f, std::memory_order_relaxed);
 
         result.meshes.reserve(asset.meshes.size());
         append_scene_meshes(asset, &result);

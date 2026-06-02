@@ -19,6 +19,7 @@ namespace chr {
         SceneLoadStatus status = SceneLoadStatus::Idle;
         std::string path;
         std::string error_message;
+        float file_progress = 0.0f;
     };
 
     class SceneAsyncLoader {
@@ -40,6 +41,7 @@ namespace chr {
         std::string error_message_;
         std::future<SceneRaw> future_;
         std::optional<SceneRaw> result_;
+        std::atomic<float> file_load_progress_{0.0f};
     };
 
 }

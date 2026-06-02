@@ -41,6 +41,8 @@ namespace chr {
         uint32_t pending_texture_occlusion = 0;
         uint32_t pending_texture_emissive = 0;
         std::size_t mipmap_generation_index = 0;
+        std::size_t total_prefetch_count = 0;
+        std::size_t completed_prefetch_count = 0;
         float progress = 0.0f;
         const char* message = "Compiling scene shaders...";
         int64_t init_start_ms = 0;

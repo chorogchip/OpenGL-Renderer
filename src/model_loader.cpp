@@ -7,10 +7,10 @@
 
 namespace chr {
 
-    SceneRaw load_scene(const char* filename) {
+    SceneRaw load_scene(const char* filename, std::atomic<float>* progress) {
         const std::filesystem::path model_path(filename);
         if (is_gltf_scene_path(model_path)) {
-            return load_gltf_scene(model_path);
+            return load_gltf_scene(model_path, progress);
         }
 
         SceneRaw result;

@@ -17,8 +17,9 @@ namespace chr {
         error_message_.clear();
         result_.reset();
         status_ = SceneLoadStatus::Loading;
-        future_ = std::async(std::launch::async, [path]() {
-            return load_scene(path.c_str());
+        file_load_progress_.store(0.0f, std::memory_order_relaxed);
+        future_ = std::async(std::launch::async, [path, this]() {
+            return load_scene(path.c_str(), &file_load_progress_);
         });
 
         return true;
@@ -55,7 +56,7 @@ namespace chr {
     }
 
     SceneLoadSnapshot SceneAsyncLoader::snapshot() const {
-        return { status_, path_, error_message_ };
+        return { status_, path_, error_message_, file_load_progress_.load(std::memory_order_relaxed) };
     }
 
     bool SceneAsyncLoader::has_result() const {
