@@ -20,6 +20,5 @@ void main() {
     vec3 hdr_color = texture(uSceneColor, TexCoord).rgb;
     vec3 exposed = hdr_color * uExposure;
     vec3 mapped = aces_filmic(exposed);
-    vec3 gamma_corrected = pow(mapped, vec3(1.0 / 2.2));
-    FragColor = vec4(gamma_corrected, 1.0);
+    FragColor = vec4(mapped, 1.0);
 }

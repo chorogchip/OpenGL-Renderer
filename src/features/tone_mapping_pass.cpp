@@ -142,28 +142,26 @@ namespace chr {
         glBindVertexArray(fullscreen_quad_vao);
         glDrawArrays(GL_TRIANGLES, 0, 6);
 
+        glBindFramebuffer(GL_FRAMEBUFFER, 0);
+        glViewport(0, 0, width, height);
+        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+        glEnable(GL_FRAMEBUFFER_SRGB);
+
         if (enable_fxaa) {
-            glBindFramebuffer(GL_FRAMEBUFFER, 0);
-            glViewport(0, 0, width, height);
-            glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
             glUseProgram(fxaa_shader);
             graphics::set_uniform_int(uniform_scene_color_fxaa, 0);
-            glActiveTexture(GL_TEXTURE0);
-            glBindTexture(GL_TEXTURE_2D, texture_tone_mapped);
-            glBindVertexArray(fullscreen_quad_vao);
-            glDrawArrays(GL_TRIANGLES, 0, 6);
         } else {
-            glBindFramebuffer(GL_FRAMEBUFFER, 0);
-            glViewport(0, 0, width, height);
-            glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
             glUseProgram(tone_map_shader);
             graphics::set_uniform_int(uniform_scene_color_tone_map, 0);
             graphics::set_uniform_float(uniform_exposure_tone_map, exposure);
-            glActiveTexture(GL_TEXTURE0);
-            glBindTexture(GL_TEXTURE_2D, texture_tone_mapped);
-            glBindVertexArray(fullscreen_quad_vao);
-            glDrawArrays(GL_TRIANGLES, 0, 6);
         }
+
+        glActiveTexture(GL_TEXTURE0);
+        glBindTexture(GL_TEXTURE_2D, texture_tone_mapped);
+        glBindVertexArray(fullscreen_quad_vao);
+        glDrawArrays(GL_TRIANGLES, 0, 6);
+
+        glDisable(GL_FRAMEBUFFER_SRGB);
     }
 
 }
