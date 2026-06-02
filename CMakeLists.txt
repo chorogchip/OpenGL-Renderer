@@ -97,27 +97,11 @@ else()
     FetchContent_MakeAvailable(fastgltf)
 endif()
 
-if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/external/glad/include/glad/glad.h" AND
-   EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/external/glad/src/glad.c")
-    add_library(glad STATIC external/glad/src/glad.c)
-    add_library(glad::glad ALIAS glad)
-    target_include_directories(glad PUBLIC external/glad/include)
-else()
-    find_package(Python3 REQUIRED COMPONENTS Interpreter)
-    FetchContent_Declare(
-        glad
-        GIT_REPOSITORY https://github.com/Dav1dde/glad.git
-        GIT_TAG v0.1.36
-        GIT_SHALLOW TRUE
-        GIT_PROGRESS TRUE
-    )
-    FetchContent_GetProperties(glad)
-    if(NOT glad_POPULATED)
-        FetchContent_Populate(glad)
-    endif()
-    add_subdirectory(${glad_SOURCE_DIR}/cmake ${glad_BINARY_DIR}/cmake)
-    glad_add_library(glad REPRODUCIBLE LOADER API gl:compatibility=4.6)
-endif()
+add_library(glad STATIC external/glad/src/glad.c)
+add_library(glad::glad ALIAS glad)
+target_include_directories(glad PUBLIC
+    external/glad/include
+)
 
 if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/external/stb_image.h")
     set(STB_INCLUDE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/external")
@@ -203,7 +187,4 @@ add_custom_command(
     COMMAND ${CMAKE_COMMAND} -E copy_directory_if_different
         "${CMAKE_CURRENT_SOURCE_DIR}/assets/shaders"
         "$<TARGET_FILE_DIR:${PROJECT_NAME}>/assets/shaders"
-    COMMAND ${CMAKE_COMMAND} -E copy_if_different
-        "${CMAKE_CURRENT_SOURCE_DIR}/assets/texture.png"
-        "$<TARGET_FILE_DIR:${PROJECT_NAME}>/assets/texture.png"
 )

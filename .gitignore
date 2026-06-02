@@ -2,7 +2,6 @@
 
 # Local third-party dependencies you do not want to commit
 /external/assimp/
-/external/glad/
 /external/glfw/
 /external/glm/
 /external/imgui/
