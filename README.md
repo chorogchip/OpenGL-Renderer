@@ -107,22 +107,52 @@ cmake --preset windows-debug -DOPENGL_RENDERER_DOWNLOAD_SPONZA=OFF
 ## 렌더링 결과
 
 ### 최종 결과 및 로딩
-![로딩 화면](./images/1-loading-screen.png)
-![최종 렌더링](./images/2-final-screen.png)
+
+- 로딩
+
+![](./images/1-loading-screen.png)
+
+- 최종 화면
+
+![](./images/2-final-screen.png)
 
 ### G-Buffer 시각화
-![알베도](./images/3-albedo-scene.png)
-![법선](./images/4-normal-screen.png)
-![깊이](./images/5-depth-screen.png)
+
+- 알베도
+
+![](./images/3-albedo-scene.png)
+
+- 노멀
+
+![](./images/4-normal-screen.png)
+
+- 깊이
+  
+![](./images/5-depth-screen.png)
 
 ### 렌더링 기법 시각화
-![SSAO](./images/6-ssao-screen.png)
-![금속성](./images/7-metaic-screen.png)
-![거칠기](./images/8-roughness-screen.png)
 
-### IBL 맵
-![난반사 맵](./images/9-irradiance-texture.png)
-![BRDF LUT](./images/10-brdf-lut-texture.png)
+- SSAO
+
+![](./images/6-ssao-screen.png)
+
+- 메탈릭
+
+![](./images/7-metaic-screen.png)
+
+- 거칠기
+
+![](./images/8-roughness-screen.png)
+
+### IBL
+
+- irradiance map
+
+![](./images/9-irradiance-texture.png)
+
+- HDR LUT
+
+![](./images/10-brdf-lut-texture.png)
 
 ## Credits
 
