@@ -9,13 +9,6 @@
 
 namespace chr {
 
-    struct RenderFeatures {
-        bool enable_ssao = true;
-        bool enable_ibl = true;
-        bool enable_pom = false;
-        bool enable_shadows = true;
-    };
-
     struct DeferredLightingInputs {
         uint32_t framebuffer = 0;
         uint32_t texture_albedo = 0;
@@ -36,7 +29,6 @@ namespace chr {
         glm::mat4 mat_view = glm::mat4(1.0f);
         glm::mat4 mat_light_view_projection = glm::mat4(1.0f);
         std::array<PointLightDesc, 5> point_lights = {};
-        RenderFeatures render_features = {};
     };
 
     struct DeferredLightingPass {
@@ -61,9 +53,6 @@ namespace chr {
         int uniform_ambient_strength = -1;
         int uniform_diffuse_strength = -1;
         int uniform_point_light_count = -1;
-        int uniform_enable_ssao = -1;
-        int uniform_enable_ibl = -1;
-        int uniform_enable_shadows = -1;
         std::array<int, 5> uniform_point_light_positions = { -1, -1, -1, -1, -1 };
         std::array<int, 5> uniform_point_light_colors = { -1, -1, -1, -1, -1 };
         std::array<int, 5> uniform_point_light_intensities = { -1, -1, -1, -1, -1 };

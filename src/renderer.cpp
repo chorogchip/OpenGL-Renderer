@@ -220,7 +220,6 @@ namespace chr {
         lighting_inputs.mat_view = mat_view;
         lighting_inputs.mat_light_view_projection = this->shadow_pass.light_view_projection();
         lighting_inputs.point_lights = POINT_LIGHTS;
-        lighting_inputs.render_features = this->render_features;
         this->deferred_lighting_pass.render(lighting_inputs);
 
         this->tone_mapping_pass.render(

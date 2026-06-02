@@ -7,7 +7,6 @@ struct GLFWwindow;
 
 namespace chr {
     enum class DebugViewMode : int;
-    struct RenderFeatures;
 }
 
 namespace imgui_layer {
@@ -31,7 +30,6 @@ namespace imgui_layer {
         chr::DebugViewMode* debug_view_mode,
         bool* show_light_markers,
         float* exposure,
-        chr::RenderFeatures* render_features,
         const RendererOverlayStats& stats);
     void end_frame();
 }

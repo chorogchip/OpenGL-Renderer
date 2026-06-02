@@ -3,7 +3,6 @@
 #include <GLFW/glfw3.h>
 
 #include "debug_preview_pass.h"
-#include "deferred_lighting_pass.h"
 
 #include <imgui.h>
 #include <imgui_impl_glfw.h>
@@ -71,7 +70,6 @@ namespace imgui_layer {
         chr::DebugViewMode* debug_view_mode,
         bool* show_light_markers,
         float* exposure,
-        chr::RenderFeatures* render_features,
         const RendererOverlayStats& stats) {
         ImGui::Begin("Renderer");
         ImGui::Text("Render Controls");
@@ -86,12 +84,6 @@ namespace imgui_layer {
         }
         ImGui::Checkbox("Point Light Markers", show_light_markers);
         ImGui::SliderFloat("Exposure", exposure, 0.1f, 5.0f, "%.2f");
-        ImGui::Separator();
-        ImGui::Text("Render Features");
-        ImGui::Checkbox("SSAO", &render_features->enable_ssao);
-        ImGui::Checkbox("IBL", &render_features->enable_ibl);
-        ImGui::Checkbox("Shadow Mapping", &render_features->enable_shadows);
-        ImGui::Checkbox("POM", &render_features->enable_pom);
         ImGui::Separator();
         ImGui::Text("Frame: %llu", static_cast<unsigned long long>(stats.frame_index));
         ImGui::Text("FPS: %.1f", stats.fps);

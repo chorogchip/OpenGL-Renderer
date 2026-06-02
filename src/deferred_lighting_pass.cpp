@@ -36,9 +36,6 @@ namespace {
         pass->uniform_ambient_strength = glGetUniformLocation(pass->shader_program, "uAmbientStrength");
         pass->uniform_diffuse_strength = glGetUniformLocation(pass->shader_program, "uDiffuseStrength");
         pass->uniform_point_light_count = glGetUniformLocation(pass->shader_program, "uPointLightCount");
-        pass->uniform_enable_ssao = glGetUniformLocation(pass->shader_program, "uEnableSsao");
-        pass->uniform_enable_ibl = glGetUniformLocation(pass->shader_program, "uEnableIbl");
-        pass->uniform_enable_shadows = glGetUniformLocation(pass->shader_program, "uEnableShadows");
 
         for (int i = 0; i < static_cast<int>(pass->uniform_point_light_positions.size()); ++i) {
             char uniform_name[64];
@@ -114,9 +111,6 @@ namespace chr {
         uniform_ambient_strength = -1;
         uniform_diffuse_strength = -1;
         uniform_point_light_count = -1;
-        uniform_enable_ssao = -1;
-        uniform_enable_ibl = -1;
-        uniform_enable_shadows = -1;
         uniform_point_light_positions.fill(-1);
         uniform_point_light_colors.fill(-1);
         uniform_point_light_intensities.fill(-1);
@@ -159,9 +153,6 @@ namespace chr {
         glUniform1f(uniform_ambient_strength, AMBIENT_STRENGTH);
         glUniform1f(uniform_diffuse_strength, DIFFUSE_STRENGTH);
         glUniform1i(uniform_point_light_count, static_cast<int>(inputs.point_lights.size()));
-        glUniform1i(uniform_enable_ssao, inputs.render_features.enable_ssao ? 1 : 0);
-        glUniform1i(uniform_enable_ibl, inputs.render_features.enable_ibl ? 1 : 0);
-        glUniform1i(uniform_enable_shadows, inputs.render_features.enable_shadows ? 1 : 0);
 
         for (int i = 0; i < static_cast<int>(inputs.point_lights.size()); ++i) {
             const glm::vec3 view_light_position =
