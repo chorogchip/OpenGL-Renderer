@@ -285,6 +285,7 @@ namespace chr {
                 &debug_view_mode,
                 &show_light_markers,
                 &renderer->tone_mapping_pass.exposure,
+                &renderer->enable_fxaa,
                 &renderer->directional_light_intensity,
                 &renderer->directional_light_color,
                 &renderer->ambient_intensity,

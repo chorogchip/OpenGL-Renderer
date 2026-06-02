@@ -33,6 +33,7 @@ namespace imgui_layer {
         chr::DebugViewMode* debug_view_mode,
         bool* show_light_markers,
         float* exposure,
+        bool* enable_fxaa,
         float* directional_light_intensity,
         glm::vec3* directional_light_color,
         float* ambient_intensity,

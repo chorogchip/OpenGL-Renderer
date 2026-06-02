@@ -73,6 +73,7 @@ namespace imgui_layer {
         chr::DebugViewMode* debug_view_mode,
         bool* show_light_markers,
         float* exposure,
+        bool* enable_fxaa,
         float* directional_light_intensity,
         glm::vec3* directional_light_color,
         float* ambient_intensity,
@@ -90,6 +91,7 @@ namespace imgui_layer {
             *debug_view_mode = static_cast<chr::DebugViewMode>(current_debug_view);
         }
         ImGui::Checkbox("Point Light Markers", show_light_markers);
+        ImGui::Checkbox("FXAA", enable_fxaa);
         ImGui::SliderFloat("Exposure", exposure, 0.1f, 5.0f, "%.2f");
         ImGui::Separator();
         ImGui::Text("Directional Light");

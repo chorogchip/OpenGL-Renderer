@@ -11,6 +11,7 @@ namespace {
     static void find_uniforms(chr::ToneMappingPass* pass) {
         pass->uniform_scene_color = graphics_util::get_uniform_location(pass->shader_program, "uSceneColor");
         pass->uniform_exposure = graphics_util::get_uniform_location(pass->shader_program, "uExposure");
+        pass->uniform_enable_fxaa = graphics_util::get_uniform_location(pass->shader_program, "uEnableFxaa");
     }
 }
 
@@ -54,6 +55,7 @@ namespace chr {
         }
         uniform_scene_color = -1;
         uniform_exposure = -1;
+        uniform_enable_fxaa = -1;
     }
 
     void ToneMappingPass::render(
@@ -67,6 +69,7 @@ namespace chr {
         glUseProgram(shader_program);
         graphics_util::set_uniform_int(uniform_scene_color, 0);
         graphics_util::set_uniform_float(uniform_exposure, exposure);
+        graphics_util::set_uniform_int(uniform_enable_fxaa, enable_fxaa ? 1 : 0);
         glActiveTexture(GL_TEXTURE0);
         glBindTexture(GL_TEXTURE_2D, texture_scene_color);
         glBindVertexArray(fullscreen_quad_vao);

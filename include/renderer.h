@@ -26,6 +26,7 @@ namespace chr {
         FullscreenQuad fullscreen_quad;
         DeferredLightingPass deferred_lighting_pass;
         ToneMappingPass tone_mapping_pass;
+        bool enable_fxaa = true;
         DebugPreviewPass debug_preview_pass;
         LightMarkerPass light_marker_pass;
         SkyboxPass skybox_pass;
