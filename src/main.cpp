@@ -3,6 +3,7 @@
 #include <glad/glad.h>
 #include <GLFW/glfw3.h>
 
+#include "app_log.h"
 #include "app_input.h"
 #include "camera.h"
 #include "renderer.h"
@@ -22,6 +23,9 @@ constexpr const char* SPONZA_SCENE_RELATIVE_PATH = OPENGL_RENDERER_DEFAULT_SPONZ
 chr::Camera camera{};
 
 int main(int argc, char** argv) {
+    app_log::init("run.log");
+    app_log::info("Application started");
+
     glfwInit();
     glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 4);
     glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 5);
@@ -29,20 +33,24 @@ int main(int argc, char** argv) {
 
     GLFWwindow* window = glfwCreateWindow(SCREEN_WIDTH, SCREEN_HEIGHT, "OpenGL-Renderer", NULL, NULL);
     if (window == nullptr) {
-        std::cout << "Failed to create GLFW window" << std::endl;
+        app_log::error("Failed to create GLFW window");
         glfwTerminate();
+        app_log::close();
         return -1;
     }
     glfwMakeContextCurrent(window);
     app_input::initialize(window, &camera, SCREEN_WIDTH, SCREEN_HEIGHT);
 
     if (!gladLoadGLLoader((GLADloadproc)glfwGetProcAddress)) {
-        std::cout << "Failed to initialize GLAD" << std::endl;
+        app_log::error("Failed to initialize GLAD");
+        app_log::close();
         return -1;
     }
 
     if (imgui_layer::init(window) != 0) {
+        app_log::error("Failed to initialize ImGui");
         glfwTerminate();
+        app_log::close();
         return -1;
     }
 
@@ -61,8 +69,10 @@ int main(int argc, char** argv) {
         &framebuffer_width,
         &framebuffer_height,
         &scene_raw)) {
+        app_log::error("Failed to load scene");
         imgui_layer::shutdown();
         glfwTerminate();
+        app_log::close();
         return -1;
     }
 
@@ -75,8 +85,10 @@ int main(int argc, char** argv) {
         &framebuffer_height,
         &renderer,
         &scene_gpu_resources)) {
+        app_log::error("Failed to initialize render resources");
         imgui_layer::shutdown();
         glfwTerminate();
+        app_log::close();
         return -1;
     }
 
@@ -96,5 +108,7 @@ int main(int argc, char** argv) {
     renderer.clear();
     imgui_layer::shutdown();
     glfwTerminate();
+    app_log::info("Application terminated successfully");
+    app_log::close();
     return 0;
 }

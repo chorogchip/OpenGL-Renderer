@@ -38,6 +38,13 @@ namespace {
         glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)0);
         glBindVertexArray(0);
     }
+
+    static void find_uniforms(chr::LightMarkerPass* pass) {
+        pass->uniform_model = glGetUniformLocation(pass->shader_program, "model");
+        pass->uniform_view = glGetUniformLocation(pass->shader_program, "view");
+        pass->uniform_projection = glGetUniformLocation(pass->shader_program, "projection");
+        pass->uniform_color = glGetUniformLocation(pass->shader_program, "uColor");
+    }
 }
 
 namespace chr {
@@ -54,10 +61,24 @@ namespace chr {
             return -1;
         }
 
-        uniform_model = glGetUniformLocation(shader_program, "model");
-        uniform_view = glGetUniformLocation(shader_program, "view");
-        uniform_projection = glGetUniformLocation(shader_program, "projection");
-        uniform_color = glGetUniformLocation(shader_program, "uColor");
+        find_uniforms(this);
+        return 0;
+    }
+
+    int LightMarkerPass::reload_shaders() {
+        const uint32_t new_shader_program = graphics_util::create_shader_program_from_files(
+            LIGHT_MARKER_VERTEX_SHADER_PATH,
+            LIGHT_MARKER_FRAGMENT_SHADER_PATH);
+        if (new_shader_program == 0) {
+            return -1;
+        }
+
+        const uint32_t old_shader_program = shader_program;
+        shader_program = new_shader_program;
+        find_uniforms(this);
+        if (old_shader_program != 0) {
+            glDeleteProgram(old_shader_program);
+        }
         return 0;
     }
 

@@ -11,6 +11,7 @@ namespace chr {
         float exposure = 1.0f;
 
         int init();
+        int reload_shaders();
         void clear();
         void render(
             uint32_t texture_scene_color,

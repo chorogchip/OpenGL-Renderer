@@ -11,4 +11,5 @@ namespace app_input {
     void process_input(GLFWwindow* window, float delta_time);
     bool consume_toggle_debug_views_requested();
     bool consume_toggle_light_markers_requested();
+    bool consume_reload_shaders_requested();
 }

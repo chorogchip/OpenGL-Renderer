@@ -1,6 +1,7 @@
 #include "graphics_util.h"
 
 #include <algorithm>
+#include <filesystem>
 #include <fstream>
 #include <glad/glad.h>
 #include <GLFW/glfw3.h>
@@ -24,6 +25,28 @@ namespace graphics_util {
 			glm::lookAt(glm::vec3(0.0f), glm::vec3( 0.0f,  0.0f, -1.0f), glm::vec3(0.0f, -1.0f,  0.0f))
 		};
 		const glm::mat4 IDENTITY_MATRIX = glm::mat4(1.0f);
+
+		std::filesystem::path resolve_shader_file_path(const std::string& path) {
+			std::filesystem::path resolved_path = path;
+			if (!resolved_path.is_relative()) {
+				return resolved_path;
+			}
+
+			const std::filesystem::path current_path = std::filesystem::current_path();
+			for (std::filesystem::path parent = current_path; !parent.empty(); parent = parent.parent_path()) {
+				const std::filesystem::path source_candidate = parent / resolved_path;
+				if (std::filesystem::exists(parent / "CMakeLists.txt") &&
+					std::filesystem::exists(source_candidate)) {
+					return source_candidate;
+				}
+
+				if (parent == parent.parent_path()) {
+					break;
+				}
+			}
+
+			return resolved_path;
+		}
 	}
 
 	unsigned compile_shader(unsigned type, const char* source) {
@@ -37,6 +60,7 @@ namespace graphics_util {
 		if (!succeed) {
 			glGetShaderInfoLog(shader, 512, nullptr, log_buf);
 			std::cout << "Err: Shader compile failed: " << log_buf << std::endl;
+			glDeleteShader(shader);
 			return 0;
 		}
 
@@ -44,7 +68,9 @@ namespace graphics_util {
 	}
 
 	unsigned compile_shader_from_file(unsigned type, const std::string& path) {
-		std::ifstream file(path);
+		const std::filesystem::path resolved_path = resolve_shader_file_path(path);
+
+		std::ifstream file(resolved_path);
 		if (!file.is_open()) {
 			std::cout << "Err: Failed to open shader file: " << path << std::endl;
 			return 0;
@@ -187,13 +213,24 @@ namespace graphics_util {
 		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
 		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
 		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+
+		// modificatoin: anisotropic filtering
+		if (glfwExtensionSupported("GL_EXT_texture_filter_anisotropic")) {
+			GLfloat max_aniso = 1.0f;
+			glGetFloatv(GL_MAX_TEXTURE_MAX_ANISOTROPY, &max_aniso);
+			glTexParameterf(
+				GL_TEXTURE_2D,
+				GL_TEXTURE_MAX_ANISOTROPY,
+				std::min(8.0f, max_aniso));
+		}
+
 		glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
 		const GLint internal_format = color_space == TextureColorSpace::Srgb ? GL_SRGB8_ALPHA8 : GL_RGBA8;
 		glTexImage2D(
 			GL_TEXTURE_2D, 0, internal_format,
 			image.width, image.height, 0, GL_RGBA, GL_UNSIGNED_BYTE, image.pixels.data());
-		glGenerateMipmap(GL_TEXTURE_2D);
 		glPixelStorei(GL_UNPACK_ALIGNMENT, prev_unpack_alignment);
+		// Defer mipmap generation to batch process after all uploads
 
 		return texture;
 	}

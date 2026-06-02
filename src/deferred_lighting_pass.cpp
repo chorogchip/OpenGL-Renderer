@@ -12,8 +12,43 @@ namespace {
     constexpr const char* LIGHTING_FRAGMENT_SHADER_PATH = "assets/shaders/deferred_light.frag";
     const glm::vec3 LIGHT_DIRECTION = glm::normalize(glm::vec3(-0.6f, -1.0f, -0.35f));
     const glm::vec3 LIGHT_COLOR = glm::vec3(1.0f, 0.98f, 0.92f);
-    constexpr float AMBIENT_STRENGTH = 0.32f;
-    constexpr float DIFFUSE_STRENGTH = 0.85f;
+    constexpr float AMBIENT_STRENGTH = 0.20f;
+    constexpr float DIFFUSE_STRENGTH = 2.5f;
+
+    static void find_uniforms(chr::DeferredLightingPass* pass) {
+        pass->uniform_g_albedo = glGetUniformLocation(pass->shader_program, "gAlbedo");
+        pass->uniform_g_normal = glGetUniformLocation(pass->shader_program, "gNormal");
+        pass->uniform_g_material = glGetUniformLocation(pass->shader_program, "gMaterial");
+        pass->uniform_g_emissive = glGetUniformLocation(pass->shader_program, "gEmissive");
+        pass->uniform_irradiance_map = glGetUniformLocation(pass->shader_program, "uIrradianceMap");
+        pass->uniform_has_irradiance_map = glGetUniformLocation(pass->shader_program, "uHasIrradianceMap");
+        pass->uniform_prefilter_map = glGetUniformLocation(pass->shader_program, "uPrefilterMap");
+        pass->uniform_brdf_lut = glGetUniformLocation(pass->shader_program, "uBrdfLut");
+        pass->uniform_has_specular_ibl = glGetUniformLocation(pass->shader_program, "uHasSpecularIbl");
+        pass->uniform_g_depth = glGetUniformLocation(pass->shader_program, "gDepth");
+        pass->uniform_shadow_map = glGetUniformLocation(pass->shader_program, "uShadowMap");
+        pass->uniform_ssao_map = glGetUniformLocation(pass->shader_program, "uSsaoMap");
+        pass->uniform_inverse_projection = glGetUniformLocation(pass->shader_program, "uInverseProjection");
+        pass->uniform_inverse_view = glGetUniformLocation(pass->shader_program, "uInverseView");
+        pass->uniform_light_view_projection = glGetUniformLocation(pass->shader_program, "uLightViewProjection");
+        pass->uniform_light_direction = glGetUniformLocation(pass->shader_program, "uLightDirection");
+        pass->uniform_light_color = glGetUniformLocation(pass->shader_program, "uLightColor");
+        pass->uniform_ambient_strength = glGetUniformLocation(pass->shader_program, "uAmbientStrength");
+        pass->uniform_diffuse_strength = glGetUniformLocation(pass->shader_program, "uDiffuseStrength");
+        pass->uniform_point_light_count = glGetUniformLocation(pass->shader_program, "uPointLightCount");
+
+        for (int i = 0; i < static_cast<int>(pass->uniform_point_light_positions.size()); ++i) {
+            char uniform_name[64];
+            snprintf(uniform_name, sizeof(uniform_name), "uPointLightPositions[%d]", i);
+            pass->uniform_point_light_positions[i] = glGetUniformLocation(pass->shader_program, uniform_name);
+            snprintf(uniform_name, sizeof(uniform_name), "uPointLightColors[%d]", i);
+            pass->uniform_point_light_colors[i] = glGetUniformLocation(pass->shader_program, uniform_name);
+            snprintf(uniform_name, sizeof(uniform_name), "uPointLightIntensities[%d]", i);
+            pass->uniform_point_light_intensities[i] = glGetUniformLocation(pass->shader_program, uniform_name);
+            snprintf(uniform_name, sizeof(uniform_name), "uPointLightRanges[%d]", i);
+            pass->uniform_point_light_ranges[i] = glGetUniformLocation(pass->shader_program, uniform_name);
+        }
+    }
 }
 
 namespace chr {
@@ -28,39 +63,25 @@ namespace chr {
             return -1;
         }
 
-        uniform_g_albedo = glGetUniformLocation(shader_program, "gAlbedo");
-        uniform_g_normal = glGetUniformLocation(shader_program, "gNormal");
-        uniform_g_material = glGetUniformLocation(shader_program, "gMaterial");
-        uniform_g_emissive = glGetUniformLocation(shader_program, "gEmissive");
-        uniform_irradiance_map = glGetUniformLocation(shader_program, "uIrradianceMap");
-        uniform_has_irradiance_map = glGetUniformLocation(shader_program, "uHasIrradianceMap");
-        uniform_prefilter_map = glGetUniformLocation(shader_program, "uPrefilterMap");
-        uniform_brdf_lut = glGetUniformLocation(shader_program, "uBrdfLut");
-        uniform_has_specular_ibl = glGetUniformLocation(shader_program, "uHasSpecularIbl");
-        uniform_g_depth = glGetUniformLocation(shader_program, "gDepth");
-        uniform_shadow_map = glGetUniformLocation(shader_program, "uShadowMap");
-        uniform_ssao_map = glGetUniformLocation(shader_program, "uSsaoMap");
-        uniform_inverse_projection = glGetUniformLocation(shader_program, "uInverseProjection");
-        uniform_inverse_view = glGetUniformLocation(shader_program, "uInverseView");
-        uniform_light_view_projection = glGetUniformLocation(shader_program, "uLightViewProjection");
-        uniform_light_direction = glGetUniformLocation(shader_program, "uLightDirection");
-        uniform_light_color = glGetUniformLocation(shader_program, "uLightColor");
-        uniform_ambient_strength = glGetUniformLocation(shader_program, "uAmbientStrength");
-        uniform_diffuse_strength = glGetUniformLocation(shader_program, "uDiffuseStrength");
-        uniform_point_light_count = glGetUniformLocation(shader_program, "uPointLightCount");
+        find_uniforms(this);
 
-        for (int i = 0; i < static_cast<int>(uniform_point_light_positions.size()); ++i) {
-            char uniform_name[64];
-            snprintf(uniform_name, sizeof(uniform_name), "uPointLightPositions[%d]", i);
-            uniform_point_light_positions[i] = glGetUniformLocation(shader_program, uniform_name);
-            snprintf(uniform_name, sizeof(uniform_name), "uPointLightColors[%d]", i);
-            uniform_point_light_colors[i] = glGetUniformLocation(shader_program, uniform_name);
-            snprintf(uniform_name, sizeof(uniform_name), "uPointLightIntensities[%d]", i);
-            uniform_point_light_intensities[i] = glGetUniformLocation(shader_program, uniform_name);
-            snprintf(uniform_name, sizeof(uniform_name), "uPointLightRanges[%d]", i);
-            uniform_point_light_ranges[i] = glGetUniformLocation(shader_program, uniform_name);
+        return 0;
+    }
+
+    int DeferredLightingPass::reload_shaders() {
+        const uint32_t new_shader_program = graphics_util::create_shader_program_from_files(
+            FULLSCREEN_VERTEX_SHADER_PATH,
+            LIGHTING_FRAGMENT_SHADER_PATH);
+        if (new_shader_program == 0) {
+            return -1;
         }
 
+        const uint32_t old_shader_program = shader_program;
+        shader_program = new_shader_program;
+        find_uniforms(this);
+        if (old_shader_program != 0) {
+            glDeleteProgram(old_shader_program);
+        }
         return 0;
     }
 

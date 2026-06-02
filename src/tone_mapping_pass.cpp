@@ -7,6 +7,11 @@
 namespace {
     constexpr const char* FULLSCREEN_VERTEX_SHADER_PATH = "assets/shaders/deferred_light.vert";
     constexpr const char* TONE_MAP_FRAGMENT_SHADER_PATH = "assets/shaders/tone_map.frag";
+
+    static void find_uniforms(chr::ToneMappingPass* pass) {
+        pass->uniform_scene_color = graphics_util::get_uniform_location(pass->shader_program, "uSceneColor");
+        pass->uniform_exposure = graphics_util::get_uniform_location(pass->shader_program, "uExposure");
+    }
 }
 
 namespace chr {
@@ -21,8 +26,24 @@ namespace chr {
             return -1;
         }
 
-        uniform_scene_color = graphics_util::get_uniform_location(shader_program, "uSceneColor");
-        uniform_exposure = graphics_util::get_uniform_location(shader_program, "uExposure");
+        find_uniforms(this);
+        return 0;
+    }
+
+    int ToneMappingPass::reload_shaders() {
+        const uint32_t new_shader_program = graphics_util::create_shader_program_from_files(
+            FULLSCREEN_VERTEX_SHADER_PATH,
+            TONE_MAP_FRAGMENT_SHADER_PATH);
+        if (new_shader_program == 0) {
+            return -1;
+        }
+
+        const uint32_t old_shader_program = shader_program;
+        shader_program = new_shader_program;
+        find_uniforms(this);
+        if (old_shader_program != 0) {
+            glDeleteProgram(old_shader_program);
+        }
         return 0;
     }
 

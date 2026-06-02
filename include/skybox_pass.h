@@ -42,8 +42,10 @@ namespace chr {
         int prefilter_size = 128;
         int prefilter_mip_levels = 5;
         int brdf_lut_size = 512;
+        std::string hdr_environment_path;
 
         int init(const std::string& hdr_environment_path);
+        int reload_shaders();
         void clear();
         bool is_ready() const;
         void render(

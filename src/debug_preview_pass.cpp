@@ -7,6 +7,12 @@
 namespace {
     constexpr const char* FULLSCREEN_VERTEX_SHADER_PATH = "assets/shaders/deferred_light.vert";
     constexpr const char* DEBUG_FRAGMENT_SHADER_PATH = "assets/shaders/debug_buffer.frag";
+
+    static void find_uniforms(chr::DebugPreviewPass* pass) {
+        pass->uniform_texture = glGetUniformLocation(pass->shader_program, "uTexture");
+        pass->uniform_cubemap_texture = glGetUniformLocation(pass->shader_program, "uCubemapTexture");
+        pass->uniform_mode = glGetUniformLocation(pass->shader_program, "uMode");
+    }
 }
 
 namespace chr {
@@ -21,9 +27,24 @@ namespace chr {
             return -1;
         }
 
-        uniform_texture = glGetUniformLocation(shader_program, "uTexture");
-        uniform_cubemap_texture = glGetUniformLocation(shader_program, "uCubemapTexture");
-        uniform_mode = glGetUniformLocation(shader_program, "uMode");
+        find_uniforms(this);
+        return 0;
+    }
+
+    int DebugPreviewPass::reload_shaders() {
+        const uint32_t new_shader_program = graphics_util::create_shader_program_from_files(
+            FULLSCREEN_VERTEX_SHADER_PATH,
+            DEBUG_FRAGMENT_SHADER_PATH);
+        if (new_shader_program == 0) {
+            return -1;
+        }
+
+        const uint32_t old_shader_program = shader_program;
+        shader_program = new_shader_program;
+        find_uniforms(this);
+        if (old_shader_program != 0) {
+            glDeleteProgram(old_shader_program);
+        }
         return 0;
     }
 
@@ -73,11 +94,19 @@ namespace chr {
         case DebugViewMode::Environment:
             preview_texture = textures.environment;
             break;
+        case DebugViewMode::EnvironmentCubemap:
+            preview_texture = textures.environment_cubemap;
+            texture_target = GL_TEXTURE_CUBE_MAP;
+            break;
         case DebugViewMode::Irradiance:
             preview_texture = textures.irradiance;
             texture_target = GL_TEXTURE_CUBE_MAP;
             break;
         case DebugViewMode::Prefilter:
+        case DebugViewMode::PrefilterMip1:
+        case DebugViewMode::PrefilterMip2:
+        case DebugViewMode::PrefilterMip3:
+        case DebugViewMode::PrefilterMip4:
             preview_texture = textures.prefilter;
             texture_target = GL_TEXTURE_CUBE_MAP;
             break;

@@ -15,8 +15,13 @@ namespace chr {
         Ao,
         Emissive,
         Environment,
+        EnvironmentCubemap,
         Irradiance,
         Prefilter,
+        PrefilterMip1,
+        PrefilterMip2,
+        PrefilterMip3,
+        PrefilterMip4,
         BrdfLut,
         Count
     };
@@ -29,6 +34,7 @@ namespace chr {
         uint32_t material = 0;
         uint32_t emissive = 0;
         uint32_t environment = 0;
+        uint32_t environment_cubemap = 0;
         uint32_t irradiance = 0;
         uint32_t prefilter = 0;
         uint32_t brdf_lut = 0;
@@ -41,6 +47,7 @@ namespace chr {
         int uniform_mode = -1;
 
         int init();
+        int reload_shaders();
         void clear();
         void render(
             const DebugPreviewTextures& textures,

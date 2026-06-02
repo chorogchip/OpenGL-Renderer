@@ -8,6 +8,7 @@ layout (location = 3) out vec3 GEmissive;
 in vec2 TexCoord;
 in vec3 Normal;
 in vec3 Tangent;
+in vec3 Bitangent;
 
 uniform sampler2D uTexture;
 uniform sampler2D uNormalTexture;
@@ -22,6 +23,8 @@ uniform vec3 uEmissiveFactor;
 uniform float uAlphaCutoff;
 uniform float uNormalScale;
 uniform float uOcclusionStrength;
+
+const float METALLIC_THRESHOLD = 0.5;
 
 void main() {
     float alpha_mask = texture(uAlphaMaskTexture, TexCoord).r;
@@ -38,7 +41,16 @@ void main() {
     vec3 final_normal = base_normal;
     if (tangent_length > 0.0001) {
         tangent /= tangent_length;
-        vec3 bitangent = normalize(cross(base_normal, tangent));
+        vec3 bitangent = Bitangent;
+        bitangent = bitangent - dot(bitangent, base_normal) * base_normal;
+        bitangent = bitangent - dot(bitangent, tangent) * tangent;
+        float bitangent_length = length(bitangent);
+        if (bitangent_length > 0.0001) {
+            bitangent /= bitangent_length;
+        }
+        else {
+            bitangent = normalize(cross(base_normal, tangent));
+        }
         vec3 sampled_normal = texture(uNormalTexture, TexCoord).rgb * 2.0 - 1.0;
         sampled_normal.xy *= uNormalScale;
         mat3 tbn = mat3(tangent, bitangent, base_normal);
@@ -48,6 +60,7 @@ void main() {
     vec4 metallic_roughness = texture(uMetallicRoughnessTexture, TexCoord);
     float roughness = clamp(metallic_roughness.g * uRoughnessFactor, 0.04, 1.0);
     float metallic = clamp(metallic_roughness.b * uMetallicFactor, 0.0, 1.0);
+    metallic = metallic < METALLIC_THRESHOLD ? 0.0 : metallic;
     float occlusion = mix(1.0, texture(uOcclusionTexture, TexCoord).r, uOcclusionStrength);
     vec3 emissive = texture(uEmissiveTexture, TexCoord).rgb * uEmissiveFactor;
 

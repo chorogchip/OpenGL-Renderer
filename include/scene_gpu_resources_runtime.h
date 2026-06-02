@@ -2,6 +2,7 @@
 
 #include <functional>
 #include <cstddef>
+#include <cstdint>
 #include <future>
 #include <string>
 #include <unordered_map>
@@ -16,7 +17,9 @@ namespace chr {
     enum class SceneGPUInitPhase {
         Shaders,
         Meshes,
+        TexturePrefetch,
         Materials,
+        MipmapGeneration,
         Complete,
         Failed
     };
@@ -30,14 +33,17 @@ namespace chr {
         std::future<graphics_util::TextureImage> pending_texture_decode;
         std::string pending_texture_path;
         std::unordered_map<std::string, uint32_t> texture_cache;
+        std::unordered_map<std::string, std::future<graphics_util::TextureImage>> prefetch_futures;
         uint32_t pending_texture_diffuse = 0;
         uint32_t pending_texture_normal = 0;
         uint32_t pending_texture_alpha_mask = 0;
         uint32_t pending_texture_metallic_roughness = 0;
         uint32_t pending_texture_occlusion = 0;
         uint32_t pending_texture_emissive = 0;
+        std::size_t mipmap_generation_index = 0;
         float progress = 0.0f;
         const char* message = "Compiling scene shaders...";
+        int64_t init_start_ms = 0;
     };
 
     void begin_scene_gpu_resources_init(
@@ -50,6 +56,7 @@ namespace chr {
         SceneGPUResources* resources,
         const SceneRaw& scene_raw,
         const SceneGPUProgressCallback& progress_callback = {});
+    int reload_scene_gpu_shaders(SceneGPUResources* resources);
     void clear_scene_gpu_resources(SceneGPUResources* resources);
     void render_scene_gpu_resources(const SceneGPUResources& resources, const SceneDrawParams& draw_params);
     void render_scene_gpu_resources_shadow(const SceneGPUResources& resources,

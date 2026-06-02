@@ -59,6 +59,7 @@ namespace chr {
         std::array<int, 5> uniform_point_light_ranges = { -1, -1, -1, -1, -1 };
 
         int init();
+        int reload_shaders();
         void clear();
         void render(const DeferredLightingInputs& inputs);
     };

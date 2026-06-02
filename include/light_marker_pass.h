@@ -19,6 +19,7 @@ namespace chr {
         int uniform_color = -1;
 
         int init();
+        int reload_shaders();
         void clear();
         void render(
             const std::array<PointLightDesc, 5>& point_lights,

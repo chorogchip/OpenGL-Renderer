@@ -1,6 +1,7 @@
 #include "renderer.h"
 
 #include <array>
+#include <iostream>
 
 #include <glad/glad.h>
 
@@ -94,9 +95,38 @@ namespace chr {
             return -1;
         }
         this->debug_environment_texture = this->skybox_pass.equirectangular_texture;
+        this->debug_environment_cubemap_texture = this->skybox_pass.environment_cubemap;
         this->debug_irradiance_texture = this->skybox_pass.irradiance_cubemap;
         this->debug_prefilter_texture = this->skybox_pass.prefiltered_environment_cubemap;
         this->debug_brdf_lut_texture = this->skybox_pass.brdf_lut_texture;
+        return 0;
+    }
+
+    int Renderer::reload_shaders() {
+        int failed_count = 0;
+        failed_count += this->ssao_pass.reload_shaders() != 0 ? 1 : 0;
+        failed_count += this->deferred_lighting_pass.reload_shaders() != 0 ? 1 : 0;
+        failed_count += this->tone_mapping_pass.reload_shaders() != 0 ? 1 : 0;
+        failed_count += this->debug_preview_pass.reload_shaders() != 0 ? 1 : 0;
+        failed_count += this->light_marker_pass.reload_shaders() != 0 ? 1 : 0;
+        if (this->skybox_pass.reload_shaders() != 0) {
+            ++failed_count;
+        }
+        else {
+            this->debug_environment_texture = this->skybox_pass.equirectangular_texture;
+            this->debug_environment_cubemap_texture = this->skybox_pass.environment_cubemap;
+            this->debug_irradiance_texture = this->skybox_pass.irradiance_cubemap;
+            this->debug_prefilter_texture = this->skybox_pass.prefiltered_environment_cubemap;
+            this->debug_brdf_lut_texture = this->skybox_pass.brdf_lut_texture;
+        }
+
+        if (failed_count > 0) {
+            std::cout << "Shader reload failed for " << failed_count
+                << " renderer pass(es). Existing programs were kept where reload failed." << std::endl;
+            return -1;
+        }
+
+        std::cout << "Renderer shaders reloaded." << std::endl;
         return 0;
     }
 
@@ -136,6 +166,7 @@ namespace chr {
         this->g_buffer_pass.clear();
         this->hdr_scene_target.clear();
         this->debug_environment_texture = 0;
+        this->debug_environment_cubemap_texture = 0;
         this->debug_irradiance_texture = 0;
         this->debug_prefilter_texture = 0;
         this->debug_brdf_lut_texture = 0;
@@ -218,6 +249,7 @@ namespace chr {
         preview_textures.material = this->g_buffer_pass.texture_material;
         preview_textures.emissive = this->g_buffer_pass.texture_emissive;
         preview_textures.environment = this->debug_environment_texture;
+        preview_textures.environment_cubemap = this->debug_environment_cubemap_texture;
         preview_textures.irradiance = this->debug_irradiance_texture;
         preview_textures.prefilter = this->debug_prefilter_texture;
         preview_textures.brdf_lut = this->debug_brdf_lut_texture;

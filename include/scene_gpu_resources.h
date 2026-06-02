@@ -48,6 +48,7 @@ namespace chr {
         uint32_t shadow_shader_program = 0;
         uint32_t fallback_texture_diffuse = 0;
         uint32_t fallback_texture_normal = 0;
+        uint32_t fallback_texture_metallic_roughness = 0;
         uint32_t fallback_texture_black = 0;
         int uniform_model = -1;
         int uniform_view = -1;

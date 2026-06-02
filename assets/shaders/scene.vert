@@ -3,10 +3,12 @@ layout (location = 0) in vec3 aPos;
 layout (location = 1) in vec2 aTexCoord;
 layout (location = 2) in vec3 aNormal;
 layout (location = 3) in vec3 aTangent;
+layout (location = 4) in vec3 aBitangent;
 
 out vec2 TexCoord;
 out vec3 Normal;
 out vec3 Tangent;
+out vec3 Bitangent;
 
 uniform mat4 model;
 uniform mat4 view;
@@ -20,4 +22,5 @@ void main() {
     TexCoord = aTexCoord;
     Normal = normal_matrix * aNormal;
     Tangent = normal_matrix * aTangent;
+    Bitangent = normal_matrix * aBitangent;
 }

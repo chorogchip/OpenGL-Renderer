@@ -9,6 +9,7 @@
 #include <GLFW/glfw3.h>
 #include <glm/gtc/matrix_transform.hpp>
 
+#include "app_log.h"
 #include "app_input.h"
 #include "camera.h"
 #include "renderer.h"
@@ -119,9 +120,12 @@ namespace chr {
 
         *scene_raw = scene_loader.take_result();
         if (scene_raw->meshes.empty()) {
-            std::cout << "Failed to load scene data from: " << scene_path << std::endl;
+            app_log::error(std::string("Failed to load scene data from: ") + scene_path);
             return false;
         }
+
+        const double scene_load_elapsed = glfwGetTime() - scene_load_start_time;
+        app_log::info("Scene file loaded: " + std::to_string(static_cast<int>(scene_load_elapsed * 1000)) + "ms");
 
         return true;
     }
@@ -133,6 +137,8 @@ namespace chr {
         int* framebuffer_height,
         Renderer* renderer,
         SceneGPUResources* scene_gpu_resources) {
+        const double gpu_init_start_time = glfwGetTime();
+
         render_loading_frame(
             window,
             make_progress_loading_state("Preparing Renderer", "Creating frame buffers...", SCENE_FILE_PROGRESS_WEIGHT),
@@ -175,6 +181,9 @@ namespace chr {
             renderer->clear();
             return false;
         }
+
+        const double gpu_init_elapsed = glfwGetTime() - gpu_init_start_time;
+        app_log::info("GPU resources initialized: " + std::to_string(static_cast<int>(gpu_init_elapsed * 1000)) + "ms");
 
         return true;
     }
@@ -234,6 +243,19 @@ namespace chr {
                 }
                 framebuffer_width = current_framebuffer_width;
                 framebuffer_height = current_framebuffer_height;
+            }
+
+            if (app_input::consume_reload_shaders_requested()) {
+                std::cout << "Reloading shaders..." << std::endl;
+                const bool renderer_reloaded = renderer->reload_shaders() == 0;
+                const bool scene_reloaded = reload_scene_gpu_shaders(scene_gpu_resources) == 0;
+                if (renderer_reloaded && scene_reloaded) {
+                    std::cout << "Shaders reloaded." << std::endl;
+                }
+                else {
+                    std::cout << "Shader reload finished with errors. Existing programs were kept for failed reloads."
+                        << std::endl;
+                }
             }
 
             const double frame_cpu_start_time = glfwGetTime();

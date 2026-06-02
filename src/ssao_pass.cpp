@@ -100,6 +100,24 @@ namespace {
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
     }
+
+    static void find_ssao_uniforms(chr::SSAOPass* pass) {
+        pass->uniform_g_normal = glGetUniformLocation(pass->shader_program, "gNormal");
+        pass->uniform_g_depth = glGetUniformLocation(pass->shader_program, "gDepth");
+        pass->uniform_noise_texture = glGetUniformLocation(pass->shader_program, "uNoiseTexture");
+        pass->uniform_projection = glGetUniformLocation(pass->shader_program, "uProjection");
+        pass->uniform_inverse_projection = glGetUniformLocation(pass->shader_program, "uInverseProjection");
+        pass->uniform_noise_scale = glGetUniformLocation(pass->shader_program, "uNoiseScale");
+        for (int i = 0; i < SSAO_KERNEL_SIZE; ++i) {
+            char uniform_name[32];
+            snprintf(uniform_name, sizeof(uniform_name), "uSamples[%d]", i);
+            pass->uniform_samples[i] = glGetUniformLocation(pass->shader_program, uniform_name);
+        }
+    }
+
+    static void find_blur_uniforms(chr::SSAOPass* pass) {
+        pass->uniform_blur_texture = glGetUniformLocation(pass->blur_shader_program, "uTexture");
+    }
 }
 
 namespace chr {
@@ -121,17 +139,7 @@ namespace chr {
             return -1;
         }
 
-        uniform_g_normal = glGetUniformLocation(shader_program, "gNormal");
-        uniform_g_depth = glGetUniformLocation(shader_program, "gDepth");
-        uniform_noise_texture = glGetUniformLocation(shader_program, "uNoiseTexture");
-        uniform_projection = glGetUniformLocation(shader_program, "uProjection");
-        uniform_inverse_projection = glGetUniformLocation(shader_program, "uInverseProjection");
-        uniform_noise_scale = glGetUniformLocation(shader_program, "uNoiseScale");
-        for (int i = 0; i < SSAO_KERNEL_SIZE; ++i) {
-            char uniform_name[32];
-            snprintf(uniform_name, sizeof(uniform_name), "uSamples[%d]", i);
-            uniform_samples[i] = glGetUniformLocation(shader_program, uniform_name);
-        }
+        find_ssao_uniforms(this);
 
         blur_shader_program = graphics_util::create_shader_program_from_files(
             FULLSCREEN_VERTEX_SHADER_PATH,
@@ -141,7 +149,38 @@ namespace chr {
             return -1;
         }
 
-        uniform_blur_texture = glGetUniformLocation(blur_shader_program, "uTexture");
+        find_blur_uniforms(this);
+        return 0;
+    }
+
+    int SSAOPass::reload_shaders() {
+        const uint32_t new_shader_program = graphics_util::create_shader_program_from_files(
+            FULLSCREEN_VERTEX_SHADER_PATH,
+            SSAO_FRAGMENT_SHADER_PATH);
+        if (new_shader_program == 0) {
+            return -1;
+        }
+
+        const uint32_t new_blur_shader_program = graphics_util::create_shader_program_from_files(
+            FULLSCREEN_VERTEX_SHADER_PATH,
+            SSAO_BLUR_FRAGMENT_SHADER_PATH);
+        if (new_blur_shader_program == 0) {
+            glDeleteProgram(new_shader_program);
+            return -1;
+        }
+
+        const uint32_t old_shader_program = shader_program;
+        const uint32_t old_blur_shader_program = blur_shader_program;
+        shader_program = new_shader_program;
+        blur_shader_program = new_blur_shader_program;
+        find_ssao_uniforms(this);
+        find_blur_uniforms(this);
+        if (old_blur_shader_program != 0) {
+            glDeleteProgram(old_blur_shader_program);
+        }
+        if (old_shader_program != 0) {
+            glDeleteProgram(old_shader_program);
+        }
         return 0;
     }
 

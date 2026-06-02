@@ -20,9 +20,14 @@ namespace {
         "Roughness",
         "AO",
         "Emissive",
-        "Environment",
+        "Source HDR",
+        "Environment Cubemap",
         "Irradiance",
-        "Prefilter",
+        "Prefilter Mip 0",
+        "Prefilter Mip 1",
+        "Prefilter Mip 2",
+        "Prefilter Mip 3",
+        "Prefilter Mip 4",
         "BRDF LUT"
     };
 }
@@ -96,6 +101,7 @@ namespace imgui_layer {
         ImGui::TextUnformatted("Left drag: rotate camera");
         ImGui::TextUnformatted("P: cycle debug view");
         ImGui::TextUnformatted("O: toggle light markers");
+        ImGui::TextUnformatted("R: reload shaders");
         ImGui::End();
     }
 

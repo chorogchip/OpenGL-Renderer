@@ -37,12 +37,39 @@ namespace {
          1.0f,  1.0f, 1.0f, 1.0f
     };
 
+    static void find_uniforms(chr::SkyboxPass* pass) {
+        pass->uniform_equirectangular_map =
+            glGetUniformLocation(pass->equirectangular_shader_program, "uEquirectangularMap");
+        pass->uniform_capture_projection =
+            glGetUniformLocation(pass->equirectangular_shader_program, "projection");
+        pass->uniform_capture_view =
+            glGetUniformLocation(pass->equirectangular_shader_program, "view");
+        pass->uniform_irradiance_environment_map =
+            glGetUniformLocation(pass->irradiance_shader_program, "uEnvironmentMap");
+        pass->uniform_irradiance_projection =
+            glGetUniformLocation(pass->irradiance_shader_program, "projection");
+        pass->uniform_irradiance_view =
+            glGetUniformLocation(pass->irradiance_shader_program, "view");
+        pass->uniform_prefilter_environment_map =
+            glGetUniformLocation(pass->prefilter_shader_program, "uEnvironmentMap");
+        pass->uniform_prefilter_projection =
+            glGetUniformLocation(pass->prefilter_shader_program, "projection");
+        pass->uniform_prefilter_view =
+            glGetUniformLocation(pass->prefilter_shader_program, "view");
+        pass->uniform_prefilter_roughness =
+            glGetUniformLocation(pass->prefilter_shader_program, "uRoughness");
+        pass->uniform_skybox_map = glGetUniformLocation(pass->skybox_shader_program, "uEnvironmentMap");
+        pass->uniform_projection = glGetUniformLocation(pass->skybox_shader_program, "projection");
+        pass->uniform_view = glGetUniformLocation(pass->skybox_shader_program, "view");
+    }
+
 }
 
 namespace chr {
 
     int SkyboxPass::init(const std::string& hdr_environment_path) {
         clear();
+        this->hdr_environment_path = hdr_environment_path;
 
         if (hdr_environment_path.empty()) {
             std::cout << "No HDR environment path configured." << std::endl;
@@ -77,29 +104,7 @@ namespace chr {
             return -1;
         }
 
-        uniform_equirectangular_map =
-            glGetUniformLocation(equirectangular_shader_program, "uEquirectangularMap");
-        uniform_capture_projection =
-            glGetUniformLocation(equirectangular_shader_program, "projection");
-        uniform_capture_view =
-            glGetUniformLocation(equirectangular_shader_program, "view");
-        uniform_irradiance_environment_map =
-            glGetUniformLocation(irradiance_shader_program, "uEnvironmentMap");
-        uniform_irradiance_projection =
-            glGetUniformLocation(irradiance_shader_program, "projection");
-        uniform_irradiance_view =
-            glGetUniformLocation(irradiance_shader_program, "view");
-        uniform_prefilter_environment_map =
-            glGetUniformLocation(prefilter_shader_program, "uEnvironmentMap");
-        uniform_prefilter_projection =
-            glGetUniformLocation(prefilter_shader_program, "projection");
-        uniform_prefilter_view =
-            glGetUniformLocation(prefilter_shader_program, "view");
-        uniform_prefilter_roughness =
-            glGetUniformLocation(prefilter_shader_program, "uRoughness");
-        uniform_skybox_map = glGetUniformLocation(skybox_shader_program, "uEnvironmentMap");
-        uniform_projection = glGetUniformLocation(skybox_shader_program, "projection");
-        uniform_view = glGetUniformLocation(skybox_shader_program, "view");
+        find_uniforms(this);
 
         glGenVertexArrays(1, &cube_vao);
         glGenBuffers(1, &cube_vbo);
@@ -254,6 +259,30 @@ namespace chr {
         glBindFramebuffer(GL_FRAMEBUFFER, 0);
         graphics_util::destroy_cubemap_capture_target(&capture_target);
 
+        return 0;
+    }
+
+    int SkyboxPass::reload_shaders() {
+        if (hdr_environment_path.empty()) {
+            return 0;
+        }
+
+        SkyboxPass rebuilt;
+        rebuilt.cubemap_size = cubemap_size;
+        rebuilt.irradiance_size = irradiance_size;
+        rebuilt.prefilter_size = prefilter_size;
+        rebuilt.prefilter_mip_levels = prefilter_mip_levels;
+        rebuilt.brdf_lut_size = brdf_lut_size;
+
+        std::cout << "Rebuilding skybox environment maps..." << std::endl;
+        if (rebuilt.init(hdr_environment_path) != 0) {
+            rebuilt.clear();
+            return -1;
+        }
+
+        clear();
+        *this = rebuilt;
+        std::cout << "Skybox environment maps rebuilt." << std::endl;
         return 0;
     }
 

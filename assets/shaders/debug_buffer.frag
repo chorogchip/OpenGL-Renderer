@@ -11,12 +11,13 @@ uniform int uMode;
 const float PI = 3.14159265359;
 
 vec3 latlong_direction(vec2 uv) {
-    float phi = uv.x * 2.0 * PI - PI;
-    float theta = uv.y * PI;
+    float phi = (uv.x - 0.5) * 2.0 * PI;
+    float theta = (uv.y - 0.5) * PI;
+    float cos_theta = cos(theta);
     return normalize(vec3(
-        sin(theta) * sin(phi),
-        cos(theta),
-        sin(theta) * cos(phi)));
+        cos_theta * cos(phi),
+        sin(theta),
+        cos_theta * sin(phi)));
 }
 
 vec3 tonemap_hdr(vec3 color) {
@@ -26,13 +27,22 @@ vec3 tonemap_hdr(vec3 color) {
 
 void main() {
     if (uMode == 10) {
+        vec3 environment = texture(uCubemapTexture, latlong_direction(TexCoord)).rgb;
+        FragColor = vec4(tonemap_hdr(environment), 1.0);
+        return;
+    }
+
+    if (uMode == 11) {
         vec3 irradiance = texture(uCubemapTexture, latlong_direction(TexCoord)).rgb;
         FragColor = vec4(tonemap_hdr(irradiance), 1.0);
         return;
     }
 
-    if (uMode == 11) {
-        vec3 prefilter = textureLod(uCubemapTexture, latlong_direction(TexCoord), 0.0).rgb;
+    if (uMode >= 12 && uMode <= 16) {
+        vec3 prefilter = textureLod(
+            uCubemapTexture,
+            latlong_direction(TexCoord),
+            float(uMode - 12)).rgb;
         FragColor = vec4(tonemap_hdr(prefilter), 1.0);
         return;
     }
@@ -40,7 +50,7 @@ void main() {
     vec4 sample_value = texture(uTexture, TexCoord);
 
     if (uMode == 1) {
-        FragColor = vec4(sample_value.rgb, 1.0);
+        FragColor = vec4(pow(sample_value.rgb, vec3(1.0 / 2.2)), 1.0);
         return;
     }
 
@@ -87,7 +97,7 @@ void main() {
         return;
     }
 
-    if (uMode == 12) {
+    if (uMode == 17) {
         FragColor = vec4(sample_value.r, sample_value.g, 0.0, 1.0);
         return;
     }

@@ -30,6 +30,7 @@ namespace chr {
         int uniform_blur_texture = -1;
 
         int init(int width, int height);
+        int reload_shaders();
         int resize(int width, int height);
         void clear();
         void render(

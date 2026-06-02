@@ -4,9 +4,11 @@
 #include <cstddef>
 #include <future>
 #include <iostream>
+#include <unordered_set>
 
 #include <glad/glad.h>
 
+#include "app_log.h"
 #include "graphics_util.h"
 
 namespace {
@@ -114,10 +116,40 @@ namespace {
         constexpr unsigned char white_pixel[] = { 255, 255, 255, 255 };
         constexpr unsigned char black_pixel[] = { 0, 0, 0, 255 };
         constexpr unsigned char flat_normal_pixel[] = { 128, 128, 255, 255 };
+        constexpr unsigned char rough_nonmetal_pixel[] = { 255, 255, 0, 255 };
         resources->fallback_texture_diffuse = create_fallback_texture(white_pixel);
         resources->fallback_texture_normal = create_fallback_texture(flat_normal_pixel);
+        resources->fallback_texture_metallic_roughness = create_fallback_texture(rough_nonmetal_pixel);
         resources->fallback_texture_black = create_fallback_texture(black_pixel);
         return true;
+    }
+
+    static void find_scene_shader_uniforms(chr::SceneGPUResources* resources) {
+        resources->uniform_model = glGetUniformLocation(resources->shader_program, "model");
+        resources->uniform_view = glGetUniformLocation(resources->shader_program, "view");
+        resources->uniform_projection = glGetUniformLocation(resources->shader_program, "projection");
+        resources->uniform_texture_diffuse = glGetUniformLocation(resources->shader_program, "uTexture");
+        resources->uniform_texture_normal = glGetUniformLocation(resources->shader_program, "uNormalTexture");
+        resources->uniform_texture_alpha_mask = glGetUniformLocation(resources->shader_program, "uAlphaMaskTexture");
+        resources->uniform_texture_metallic_roughness =
+            glGetUniformLocation(resources->shader_program, "uMetallicRoughnessTexture");
+        resources->uniform_texture_occlusion = glGetUniformLocation(resources->shader_program, "uOcclusionTexture");
+        resources->uniform_texture_emissive = glGetUniformLocation(resources->shader_program, "uEmissiveTexture");
+        resources->uniform_base_color_factor = glGetUniformLocation(resources->shader_program, "uBaseColorFactor");
+        resources->uniform_metallic_factor = glGetUniformLocation(resources->shader_program, "uMetallicFactor");
+        resources->uniform_roughness_factor = glGetUniformLocation(resources->shader_program, "uRoughnessFactor");
+        resources->uniform_emissive_factor = glGetUniformLocation(resources->shader_program, "uEmissiveFactor");
+        resources->uniform_alpha_cutoff = glGetUniformLocation(resources->shader_program, "uAlphaCutoff");
+        resources->uniform_normal_scale = glGetUniformLocation(resources->shader_program, "uNormalScale");
+        resources->uniform_occlusion_strength = glGetUniformLocation(resources->shader_program, "uOcclusionStrength");
+    }
+
+    static void find_shadow_shader_uniforms(chr::SceneGPUResources* resources) {
+        resources->uniform_shadow_model = glGetUniformLocation(resources->shadow_shader_program, "model");
+        resources->uniform_shadow_light_view_projection =
+            glGetUniformLocation(resources->shadow_shader_program, "uLightViewProjection");
+        resources->uniform_shadow_texture_alpha_mask =
+            glGetUniformLocation(resources->shadow_shader_program, "uAlphaMaskTexture");
     }
 
     static void upload_scene_mesh(
@@ -175,6 +207,27 @@ namespace {
             return true;
         }
 
+        // Try prefetch map first
+        const auto prefetch_it = state->prefetch_futures.find(path);
+        if (prefetch_it != state->prefetch_futures.end()) {
+            auto& future = prefetch_it->second;
+            if (future.wait_for(std::chrono::seconds(0)) != std::future_status::ready) {
+                state->message = "Decoding material texture...";
+                return false;
+            }
+
+            graphics_util::TextureImage image = future.get();
+            state->prefetch_futures.erase(prefetch_it);
+            *texture = graphics_util::create_texture_2d(image, color_space);
+            if (*texture != 0) {
+                state->texture_cache[cache_key] = *texture;
+                resources->owned_texture_handles.push_back(*texture);
+            }
+            state->message = "Uploading material textures...";
+            return true;
+        }
+
+        // Fallback to single pending decode (for empty/missing prefetch)
         if (!state->pending_texture_decode.valid()) {
             state->pending_texture_path = path;
             state->pending_texture_decode = std::async(
@@ -213,6 +266,7 @@ namespace chr {
         clear_scene_gpu_resources(resources);
         *state = {};
         state->scene_raw = &scene_raw;
+        state->init_start_ms = app_log::now_ms();
     }
 
     bool step_scene_gpu_resources_init(SceneGPUResources* resources, SceneGPUInitState* state) {
@@ -223,6 +277,7 @@ namespace chr {
         const SceneRaw& scene_raw = *state->scene_raw;
 
         if (state->phase == SceneGPUInitPhase::Shaders) {
+            int64_t phase_start = app_log::now_ms();
             state->message = "Compiling scene shaders...";
             if (!init_scene_gpu_shaders(resources)) {
                 clear_scene_gpu_resources(resources);
@@ -230,6 +285,9 @@ namespace chr {
                 state->message = "Failed to create scene shaders.";
                 return false;
             }
+
+            int64_t phase_elapsed = app_log::now_ms() - phase_start;
+            app_log::info("  [Shaders] " + std::to_string(phase_elapsed) + "ms");
 
             state->phase = scene_raw.meshes.empty()
                 ? SceneGPUInitPhase::Materials
@@ -240,6 +298,10 @@ namespace chr {
         }
 
         if (state->phase == SceneGPUInitPhase::Meshes) {
+            if (state->mesh_index == 0) {
+                state->init_start_ms = app_log::now_ms();  // Mark meshes start
+            }
+
             if (state->mesh_index < scene_raw.meshes.size()) {
                 upload_scene_mesh(resources, scene_raw.meshes[state->mesh_index]);
                 ++state->mesh_index;
@@ -248,21 +310,111 @@ namespace chr {
                 return true;
             }
 
-            state->phase = SceneGPUInitPhase::Materials;
+            int64_t phase_elapsed = app_log::now_ms() - state->init_start_ms;
+            app_log::info("  [Meshes] " + std::to_string(phase_elapsed) + "ms");
+
+            state->phase = SceneGPUInitPhase::TexturePrefetch;
             state->progress = GPU_PROGRESS_SHADER_WEIGHT + GPU_PROGRESS_MESH_WEIGHT;
-            state->message = "Uploading material textures...";
+            state->message = "Prefetching textures...";
+            state->init_start_ms = app_log::now_ms();  // Reset for next phase
+            return true;
+        }
+
+        if (state->phase == SceneGPUInitPhase::TexturePrefetch) {
+            // First pass: collect unique paths and launch async decodes
+            if (state->prefetch_futures.empty() && state->material_index == 0) {
+                std::unordered_set<std::string> unique_texture_paths;
+                for (const auto& material : scene_raw.materials) {
+                    if (!material.texture_diffuse.empty()) unique_texture_paths.insert(material.texture_diffuse);
+                    if (!material.texture_normal.empty()) unique_texture_paths.insert(material.texture_normal);
+                    if (!material.texture_alpha_mask.empty()) unique_texture_paths.insert(material.texture_alpha_mask);
+                    if (!material.texture_metallic_roughness.empty()) unique_texture_paths.insert(material.texture_metallic_roughness);
+                    if (!material.texture_occlusion.empty()) unique_texture_paths.insert(material.texture_occlusion);
+                    if (!material.texture_emissive.empty()) unique_texture_paths.insert(material.texture_emissive);
+                }
+
+                app_log::info("  [TexturePrefetch] Launching " + std::to_string(unique_texture_paths.size()) + " async decodes");
+
+                for (const auto& path : unique_texture_paths) {
+                    if (state->texture_cache.find(path) == state->texture_cache.end()) {
+                        state->prefetch_futures[path] = std::async(
+                            std::launch::async,
+                            [path]() { return graphics_util::load_texture_image(path); });
+                    }
+                }
+                state->init_start_ms = app_log::now_ms();
+            }
+
+            // Second pass: upload ready textures immediately
+            std::vector<std::string> completed_paths;
+            for (auto& [path, future] : state->prefetch_futures) {
+                if (future.wait_for(std::chrono::seconds(0)) == std::future_status::ready) {
+                    graphics_util::TextureImage image = future.get();
+
+                    // Determine color space based on path hints
+                    graphics_util::TextureColorSpace color_space = graphics_util::TextureColorSpace::Linear;
+                    if (path.find("BaseColor") != std::string::npos ||
+                        path.find("Emissive") != std::string::npos) {
+                        color_space = graphics_util::TextureColorSpace::Srgb;
+                    }
+
+                    uint32_t texture = graphics_util::create_texture_2d(image, color_space);
+                    if (texture != 0) {
+                        std::string cache_key = make_texture_cache_key(path, color_space);
+                        state->texture_cache[cache_key] = texture;
+                        resources->owned_texture_handles.push_back(texture);
+                    }
+
+                    completed_paths.push_back(path);
+                    state->message = "Uploading material textures...";
+                }
+            }
+
+            // Remove uploaded textures from pending
+            for (const auto& path : completed_paths) {
+                state->prefetch_futures.erase(path);
+            }
+
+            // Move to Materials when all uploads complete
+            if (state->prefetch_futures.empty()) {
+                int64_t phase_elapsed = app_log::now_ms() - state->init_start_ms;
+                app_log::info("  [TexturePrefetch] " + std::to_string(phase_elapsed) + "ms (decode+upload)");
+
+                state->phase = SceneGPUInitPhase::Materials;
+                state->progress = GPU_PROGRESS_SHADER_WEIGHT + GPU_PROGRESS_MESH_WEIGHT;
+                state->message = "Loading material data...";
+                state->init_start_ms = app_log::now_ms();  // Reset for Materials timing
+            }
+
             return true;
         }
 
         if (state->phase == SceneGPUInitPhase::Materials) {
             if (state->material_index >= scene_raw.materials.size()) {
-                state->phase = SceneGPUInitPhase::Complete;
-                state->progress = 1.0f;
-                state->message = "Scene ready.";
+                int64_t materials_elapsed_ms = app_log::now_ms() - state->init_start_ms;
+                app_log::info("  [Materials] " + std::to_string(materials_elapsed_ms) + "ms");
+
+                state->phase = SceneGPUInitPhase::MipmapGeneration;
+                state->progress = 0.95f;
+                state->message = "Generating mipmaps...";
+                state->mipmap_generation_index = 0;
+                state->init_start_ms = app_log::now_ms();
+
                 return true;
             }
 
             const SceneRaw::Material& material_raw = scene_raw.materials[state->material_index];
+
+            // Track material start time on first texture
+            if (state->material_texture_step == 0 && state->material_index > 0) {
+                int64_t material_elapsed = app_log::now_ms() - state->init_start_ms;
+                if (material_elapsed > 1000) {  // Log if >1s
+                    app_log::info("    Material " + std::to_string(state->material_index - 1) + ": " +
+                                  std::to_string(material_elapsed) + "ms");
+                }
+                state->init_start_ms = app_log::now_ms();  // Reset for next material
+            }
+
             if (state->material_texture_step == 0) {
                 if (!upload_texture_when_decoded(
                     resources,
@@ -357,7 +509,7 @@ namespace chr {
                         : resources->fallback_texture_diffuse,
                     state->pending_texture_metallic_roughness != 0
                         ? state->pending_texture_metallic_roughness
-                        : resources->fallback_texture_diffuse,
+                        : resources->fallback_texture_metallic_roughness,
                     state->pending_texture_occlusion != 0
                         ? state->pending_texture_occlusion
                         : resources->fallback_texture_diffuse,
@@ -380,6 +532,39 @@ namespace chr {
             return true;
         }
 
+        if (state->phase == SceneGPUInitPhase::MipmapGeneration) {
+            int64_t phase_start = app_log::now_ms();
+
+            // Batch generate mipmaps for a few textures per frame
+            const int mipmaps_per_frame = 8;
+            const int total_textures = static_cast<int>(resources->owned_texture_handles.size());
+            int generated = 0;
+
+            while (state->mipmap_generation_index < total_textures && generated < mipmaps_per_frame) {
+                uint32_t texture = resources->owned_texture_handles[state->mipmap_generation_index];
+                glBindTexture(GL_TEXTURE_2D, texture);
+                glGenerateMipmap(GL_TEXTURE_2D);
+                ++state->mipmap_generation_index;
+                ++generated;
+            }
+
+            if (state->mipmap_generation_index >= total_textures) {
+                int64_t phase_elapsed = app_log::now_ms() - phase_start;
+                app_log::info("  [MipmapGeneration] " + std::to_string(phase_elapsed) + "ms (batch)");
+
+                state->phase = SceneGPUInitPhase::Complete;
+                state->progress = 1.0f;
+                state->message = "Scene ready.";
+
+                int64_t total_elapsed_ms = app_log::now_ms() - state->init_start_ms;
+                app_log::info("Scene GPU resources initialization: " + std::to_string(total_elapsed_ms) + "ms");
+
+                return true;
+            }
+
+            return true;
+        }
+
         return state->phase == SceneGPUInitPhase::Complete;
     }
 
@@ -397,6 +582,42 @@ namespace chr {
             report_progress(progress_callback, state.progress, state.message);
         }
 
+        return 0;
+    }
+
+    int reload_scene_gpu_shaders(SceneGPUResources* resources) {
+        if (resources == nullptr) {
+            return -1;
+        }
+
+        const uint32_t new_shader_program = graphics_util::create_shader_program_from_files(
+            VERTEX_SHADER_PATH,
+            FRAGMENT_SHADER_PATH);
+        if (new_shader_program == 0) {
+            return -1;
+        }
+
+        const uint32_t new_shadow_shader_program = graphics_util::create_shader_program_from_files(
+            SHADOW_VERTEX_SHADER_PATH,
+            SHADOW_FRAGMENT_SHADER_PATH);
+        if (new_shadow_shader_program == 0) {
+            glDeleteProgram(new_shader_program);
+            return -1;
+        }
+
+        const uint32_t old_shader_program = resources->shader_program;
+        const uint32_t old_shadow_shader_program = resources->shadow_shader_program;
+        resources->shader_program = new_shader_program;
+        resources->shadow_shader_program = new_shadow_shader_program;
+        find_scene_shader_uniforms(resources);
+        find_shadow_shader_uniforms(resources);
+
+        if (old_shadow_shader_program != 0) {
+            glDeleteProgram(old_shadow_shader_program);
+        }
+        if (old_shader_program != 0) {
+            glDeleteProgram(old_shader_program);
+        }
         return 0;
     }
 
@@ -423,6 +644,10 @@ namespace chr {
         if (resources->fallback_texture_normal != 0) {
             glDeleteTextures(1, &resources->fallback_texture_normal);
             resources->fallback_texture_normal = 0;
+        }
+        if (resources->fallback_texture_metallic_roughness != 0) {
+            glDeleteTextures(1, &resources->fallback_texture_metallic_roughness);
+            resources->fallback_texture_metallic_roughness = 0;
         }
         if (resources->fallback_texture_black != 0) {
             glDeleteTextures(1, &resources->fallback_texture_black);
@@ -483,7 +708,7 @@ namespace chr {
             uint32_t texture_diffuse = resources.fallback_texture_diffuse;
             uint32_t texture_normal = resources.fallback_texture_normal;
             uint32_t texture_alpha_mask = resources.fallback_texture_diffuse;
-            uint32_t texture_metallic_roughness = resources.fallback_texture_diffuse;
+            uint32_t texture_metallic_roughness = resources.fallback_texture_metallic_roughness;
             uint32_t texture_occlusion = resources.fallback_texture_diffuse;
             uint32_t texture_emissive = resources.fallback_texture_black;
             glm::vec4 base_color_factor = glm::vec4(1.0f);
