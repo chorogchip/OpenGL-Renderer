@@ -157,7 +157,7 @@ endif()
 
 find_package(OpenGL REQUIRED)
 
-file(GLOB SOURCES CONFIGURE_DEPENDS "src/*.cpp")
+file(GLOB_RECURSE SOURCES CONFIGURE_DEPENDS "src/*.cpp")
 
 add_library(imgui STATIC
     ${IMGUI_SOURCE_DIR}/imgui.cpp
