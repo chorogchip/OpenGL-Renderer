@@ -224,9 +224,10 @@ namespace chr {
         lighting_inputs.directional_light_color = this->directional_light_color;
         lighting_inputs.ambient_intensity = this->ambient_intensity;
         lighting_inputs.point_light_intensities = this->point_light_intensities;
+        lighting_inputs.render_features = this->render_features;
         this->deferred_lighting_pass.render(lighting_inputs);
 
-        this->tone_mapping_pass.enable_fxaa = this->enable_fxaa;
+        this->tone_mapping_pass.enable_fxaa = this->render_features.enable_fxaa;
         this->tone_mapping_pass.render(
             this->hdr_scene_target.texture_scene_color,
             this->fullscreen_quad.vao,

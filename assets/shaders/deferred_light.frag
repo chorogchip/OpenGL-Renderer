@@ -24,6 +24,9 @@ uniform float uDiffuseStrength;
 uniform int uHasIrradianceMap;
 uniform int uHasSpecularIbl;
 uniform int uPointLightCount;
+uniform int uEnableSsao;
+uniform int uEnableIbl;
+uniform int uEnableShadows;
 uniform vec3 uPointLightPositions[5];
 uniform vec3 uPointLightColors[5];
 uniform float uPointLightIntensities[5];
@@ -141,36 +144,42 @@ void main() {
     if (depth >= 0.999999) {
         discard;
     }
-    float ambient_occlusion = min(texture(uSsaoMap, TexCoord).r, material.b);
+    float ambient_occlusion = uEnableSsao != 0
+        ? min(texture(uSsaoMap, TexCoord).r, material.b)
+        : 1.0;
 
     vec3 view_pos = reconstruct_view_position(TexCoord, depth);
     vec3 view_dir = normalize(-view_pos);
     vec3 world_normal = normalize(mat3(uInverseView) * normal);
     vec3 world_view_dir = normalize(mat3(uInverseView) * view_dir);
     vec3 light_dir = normalize(-uLightDirection);
-    float directional_shadow = calculate_directional_shadow(view_pos, normal);
+    float directional_shadow = uEnableShadows != 0
+        ? calculate_directional_shadow(view_pos, normal)
+        : 0.0;
 
     vec3 ambient = ambient_occlusion * uAmbientStrength * albedo.rgb;
-    if (uHasIrradianceMap != 0) {
-        vec3 irradiance = texture(uIrradianceMap, world_normal).rgb;
-        ambient += ambient_occlusion * DIFFUSE_IBL_STRENGTH * irradiance * albedo.rgb * (1.0 - metallic);
-    }
-    if (uHasSpecularIbl != 0) {
-        vec3 f0 = mix(vec3(0.04), albedo.rgb, metallic);
-        vec3 fresnel = fresnel_schlick_roughness(
-            max(dot(world_normal, world_view_dir), 0.0),
-            f0,
-            roughness);
-        vec3 reflection_dir = reflect(-world_view_dir, world_normal);
-        vec3 prefiltered_color = textureLod(
-            uPrefilterMap,
-            reflection_dir,
-            roughness * MAX_REFLECTION_LOD).rgb;
-        vec2 brdf = texture(
-            uBrdfLut,
-            vec2(max(dot(world_normal, world_view_dir), 0.0), roughness)).rg;
-        ambient += ambient_occlusion * SPECULAR_IBL_STRENGTH *
-            prefiltered_color * (fresnel * brdf.x + brdf.y);
+    if (uEnableIbl != 0) {
+        if (uHasIrradianceMap != 0) {
+            vec3 irradiance = texture(uIrradianceMap, world_normal).rgb;
+            ambient += ambient_occlusion * DIFFUSE_IBL_STRENGTH * irradiance * albedo.rgb * (1.0 - metallic);
+        }
+        if (uHasSpecularIbl != 0) {
+            vec3 f0 = mix(vec3(0.04), albedo.rgb, metallic);
+            vec3 fresnel = fresnel_schlick_roughness(
+                max(dot(world_normal, world_view_dir), 0.0),
+                f0,
+                roughness);
+            vec3 reflection_dir = reflect(-world_view_dir, world_normal);
+            vec3 prefiltered_color = textureLod(
+                uPrefilterMap,
+                reflection_dir,
+                roughness * MAX_REFLECTION_LOD).rgb;
+            vec2 brdf = texture(
+                uBrdfLut,
+                vec2(max(dot(world_normal, world_view_dir), 0.0), roughness)).rg;
+            ambient += ambient_occlusion * SPECULAR_IBL_STRENGTH *
+                prefiltered_color * (fresnel * brdf.x + brdf.y);
+        }
     }
     vec3 directional = (1.0 - directional_shadow) * calculate_pbr_light(
         albedo.rgb,

@@ -26,10 +26,10 @@ namespace chr {
         FullscreenQuad fullscreen_quad;
         DeferredLightingPass deferred_lighting_pass;
         ToneMappingPass tone_mapping_pass;
-        bool enable_fxaa = true;
         DebugPreviewPass debug_preview_pass;
         LightMarkerPass light_marker_pass;
         SkyboxPass skybox_pass;
+        RenderFeatures render_features;
         float directional_light_intensity = 2.5f;
         glm::vec3 directional_light_color = glm::vec3(1.0f, 0.98f, 0.92f);
         float ambient_intensity = 0.20f;

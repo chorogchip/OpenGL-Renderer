@@ -6,6 +6,8 @@
 
 #include <glm/glm.hpp>
 
+#include "deferred_lighting_pass.h"
+
 struct GLFWwindow;
 
 namespace chr {
@@ -33,7 +35,7 @@ namespace imgui_layer {
         chr::DebugViewMode* debug_view_mode,
         bool* show_light_markers,
         float* exposure,
-        bool* enable_fxaa,
+        chr::RenderFeatures* render_features,
         float* directional_light_intensity,
         glm::vec3* directional_light_color,
         float* ambient_intensity,
