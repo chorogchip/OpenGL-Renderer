@@ -36,7 +36,6 @@ namespace chr {
             bool double_sided = false;
             float normal_scale = 1.0f;
             float occlusion_strength = 1.0f;
-            float height_scale = 0.0f;
             std::string texture_base_color;
             std::string texture_diffuse;
             std::string texture_normal;

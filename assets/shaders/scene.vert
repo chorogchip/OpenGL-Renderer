@@ -9,7 +9,6 @@ out vec2 TexCoord;
 out vec3 Normal;
 out vec3 Tangent;
 out vec3 Bitangent;
-out vec3 ViewPos;
 
 uniform mat4 model;
 uniform mat4 view;
@@ -21,7 +20,6 @@ void main() {
     vec4 view_pos = model_view * vec4(aPos, 1.0);
     gl_Position = projection * view_pos;
     TexCoord = aTexCoord;
-    ViewPos = view_pos.xyz;
     Normal = normal_matrix * aNormal;
     Tangent = normal_matrix * aTangent;
     Bitangent = normal_matrix * aBitangent;

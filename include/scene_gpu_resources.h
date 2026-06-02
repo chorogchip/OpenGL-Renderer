@@ -33,7 +33,6 @@ namespace chr {
             uint32_t double_sided = 0;
             float normal_scale = 1.0f;
             float occlusion_strength = 1.0f;
-            float height_scale = 0.0f;
             uint32_t texture_diffuse;
             uint32_t texture_normal;
             uint32_t texture_alpha_mask;
@@ -67,7 +66,6 @@ namespace chr {
         int uniform_alpha_cutoff = -1;
         int uniform_normal_scale = -1;
         int uniform_occlusion_strength = -1;
-        int uniform_height_scale = -1;
         int uniform_shadow_model = -1;
         int uniform_shadow_light_view_projection = -1;
         int uniform_shadow_texture_alpha_mask = -1;

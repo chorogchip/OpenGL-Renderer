@@ -101,7 +101,6 @@ namespace {
         resources->uniform_alpha_cutoff = glGetUniformLocation(resources->shader_program, "uAlphaCutoff");
         resources->uniform_normal_scale = glGetUniformLocation(resources->shader_program, "uNormalScale");
         resources->uniform_occlusion_strength = glGetUniformLocation(resources->shader_program, "uOcclusionStrength");
-        resources->uniform_height_scale = glGetUniformLocation(resources->shader_program, "uHeightScale");
 
         resources->shadow_shader_program = graphics_util::create_shader_program_from_files(
             SHADOW_VERTEX_SHADER_PATH, SHADOW_FRAGMENT_SHADER_PATH);
@@ -143,7 +142,6 @@ namespace {
         resources->uniform_alpha_cutoff = glGetUniformLocation(resources->shader_program, "uAlphaCutoff");
         resources->uniform_normal_scale = glGetUniformLocation(resources->shader_program, "uNormalScale");
         resources->uniform_occlusion_strength = glGetUniformLocation(resources->shader_program, "uOcclusionStrength");
-        resources->uniform_height_scale = glGetUniformLocation(resources->shader_program, "uHeightScale");
     }
 
     static void find_shadow_shader_uniforms(chr::SceneGPUResources* resources) {
@@ -529,7 +527,6 @@ namespace chr {
                     material_raw.double_sided ? 1u : 0u,
                     material_raw.normal_scale,
                     material_raw.occlusion_strength,
-                    material_raw.height_scale,
                     state->pending_texture_diffuse != 0
                         ? state->pending_texture_diffuse
                         : resources->fallback_texture_diffuse,
@@ -755,7 +752,6 @@ namespace chr {
             float alpha_cutoff = 0.5f;
             float normal_scale = 1.0f;
             float occlusion_strength = 1.0f;
-            float height_scale = 0.0f;
             if (mesh.material_index < resources.materials.size()) {
                 const SceneGPUResources::Material& material = resources.materials[mesh.material_index];
                 texture_diffuse = material.texture_diffuse;
@@ -771,7 +767,6 @@ namespace chr {
                 alpha_cutoff = material.alpha_cutoff;
                 normal_scale = material.normal_scale;
                 occlusion_strength = material.occlusion_strength;
-                height_scale = material.height_scale;
             }
 
             glUniform4fv(resources.uniform_base_color_factor, 1, &base_color_factor[0]);
@@ -781,7 +776,6 @@ namespace chr {
             glUniform1f(resources.uniform_alpha_cutoff, alpha_cutoff);
             glUniform1f(resources.uniform_normal_scale, normal_scale);
             glUniform1f(resources.uniform_occlusion_strength, occlusion_strength);
-            glUniform1f(resources.uniform_height_scale, height_scale);
             glActiveTexture(GL_TEXTURE0);
             glBindTexture(GL_TEXTURE_2D, texture_diffuse);
             glActiveTexture(GL_TEXTURE1);
