@@ -1,7 +1,7 @@
 # OpenGL-Renderer
 
-C++ / OpenGL 기반 deferred renderer입니다.  
-Sponza scene을 대상으로 최신 렌더링 기법들을 구현했습니다.
+C++ / OpenGL 기반 PBR deferred renderer입니다.  
+Intel Sponza scene을 대상으로 렌더링 기법들을 구현했습니다.
 
 ![](./images/2-final-screen.png)
 
@@ -104,34 +104,25 @@ cmake --preset windows-debug -DOPENGL_RENDERER_DOWNLOAD_SPONZA=OFF
 - **Point Lights**: 5개 광원의 강도 조절
 - **Exposure**: HDR tone mapping 노출도
 
-## 데버그 뷰 모드
+## 렌더링 결과
 
-1. Final - 최종 렌더링 결과
-2. Albedo - 표면 색상
-3. Normal - 표면 법선
-4. Depth - 깊이 맵
-5. SSAO - 주변광 차폐
-6. Metallic - 금속성
-7. Roughness - 거칠기
-8. AO - 환경 차폐
-9. Emissive - 방사 광
-10. Source HDR - 원본 환경맵
-11. Environment Cubemap - 변환된 환경맵
-12. Irradiance - 난반사 맵
-13-17. Prefilter Mips - 정반사 사전필터 (5개 mip 레벨)
-18. BRDF LUT - BRDF 조회 테이블
+### 최종 결과 및 로딩
+![로딩 화면](./images/1-loading-screen.png)
+![최종 렌더링](./images/2-final-screen.png)
 
-## 구조
+### G-Buffer 시각화
+![알베도](./images/3-albedo-scene.png)
+![법선](./images/4-normal-screen.png)
+![깊이](./images/5-depth-screen.png)
 
-```
-include/
-  core/          - OpenGL 유틸리티, 카메라
-  features/      - 렌더 패스 (G-buffer, shadow, lighting 등)
-  scene/         - 씬 로딩 및 GPU 리소스 관리
-  app/           - 애플리케이션 계층
+### 렌더링 기법 시각화
+![SSAO](./images/6-ssao-screen.png)
+![금속성](./images/7-metaic-screen.png)
+![거칠기](./images/8-roughness-screen.png)
 
-src/             - 구현 파일들
-```
+### IBL 맵
+![난반사 맵](./images/9-irradiance-texture.png)
+![BRDF LUT](./images/10-brdf-lut-texture.png)
 
 ## Credits
 
